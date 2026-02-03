@@ -7,7 +7,7 @@ use crate::effect::{EffectIntensity, ScreenEffect};
 use crate::lifetime::EffectLifetime;
 
 #[cfg(feature = "distortion")]
-use crate::distortion::{HeatHaze, RadialBlur, Raindrops, Shockwave};
+use crate::distortion::{HeatHaze, RadialBlur, Raindrops, Shockwave, WorldHeatShimmer, WorldShockwave};
 
 #[cfg(feature = "glitch")]
 use crate::glitch::{BlockDisplacement, EmpInterference, RgbSplit, ScanlineGlitch, StaticNoise};
@@ -97,6 +97,18 @@ pub struct ExtractedEmpInterference {
     pub intensity: f32,
 }
 
+/// Extracted world-space heat shimmer effect data.
+#[derive(Component, Clone)]
+pub struct ExtractedWorldHeatShimmer {
+    /// Screen-space bounds (left, right, top, bottom) in UV coordinates.
+    pub bounds: Vec4,
+    pub amplitude: f32,
+    pub frequency: f32,
+    pub speed: f32,
+    pub softness: f32,
+    pub intensity: f32,
+}
+
 /// Resource holding all extracted effects for the current frame.
 #[derive(Resource, Default)]
 pub struct ExtractedEffects {
@@ -108,6 +120,7 @@ pub struct ExtractedEffects {
     pub damage_vignettes: Vec<ExtractedDamageVignette>,
     pub screen_flashes: Vec<ExtractedScreenFlash>,
     pub raindrops: Vec<ExtractedRaindrops>,
+    pub world_heat_shimmers: Vec<ExtractedWorldHeatShimmer>,
     pub time: f32,
     pub delta_time: f32,
 }
@@ -122,6 +135,7 @@ impl ExtractedEffects {
             || !self.damage_vignettes.is_empty()
             || !self.screen_flashes.is_empty()
             || !self.raindrops.is_empty()
+            || !self.world_heat_shimmers.is_empty()
     }
 }
 
@@ -135,12 +149,24 @@ pub fn extract_effects(
         Query<(&Shockwave, &EffectIntensity, &EffectLifetime), With<ScreenEffect>>,
     >,
 
+    #[cfg(feature = "distortion")] world_shockwaves: Extract<
+        Query<(&WorldShockwave, &EffectIntensity, &EffectLifetime), With<ScreenEffect>>,
+    >,
+
+    #[cfg(feature = "distortion")] cameras: Extract<
+        Query<(&Camera, &GlobalTransform), With<Camera3d>>,
+    >,
+
     #[cfg(feature = "distortion")] radial_blurs: Extract<
         Query<(&RadialBlur, &EffectIntensity), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "distortion")] raindrops: Extract<
         Query<(&Raindrops, &EffectIntensity), With<ScreenEffect>>,
+    >,
+
+    #[cfg(feature = "distortion")] world_heat_shimmers: Extract<
+        Query<(&WorldHeatShimmer, &EffectIntensity), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "glitch")] rgb_splits: Extract<
@@ -175,6 +201,7 @@ pub fn extract_effects(
     extracted.shockwaves.clear();
     extracted.radial_blurs.clear();
     extracted.raindrops.clear();
+    extracted.world_heat_shimmers.clear();
     extracted.rgb_splits.clear();
     extracted.glitches.clear();
     extracted.emp_interferences.clear();
@@ -196,6 +223,46 @@ pub fn extract_effects(
                 max_radius: shockwave.max_radius,
                 chromatic: shockwave.chromatic,
             });
+        }
+    }
+
+    // Extract world-space shockwaves (project to screen space each frame)
+    #[cfg(feature = "distortion")]
+    if let Some((camera, cam_transform)) = cameras.iter().next() {
+        for (shockwave, intensity, lifetime) in world_shockwaves.iter() {
+            if intensity.get() > 0.001 {
+                let center_ndc = camera.world_to_ndc(cam_transform, shockwave.world_pos);
+                if let Some(ndc) = center_ndc {
+                    // Convert NDC to screen coords (y=0 at top, y=1 at bottom)
+                    let screen_pos = Vec2::new(ndc.x * 0.5 + 0.5, -ndc.y * 0.5 + 0.5);
+
+                    // Project a point offset by max_radius to get screen-space radius
+                    // Use camera's right vector for the offset
+                    let cam_right = cam_transform.right();
+                    let offset_pos = shockwave.world_pos + cam_right * shockwave.max_radius;
+                    let screen_radius = if let Some(offset_ndc) =
+                        camera.world_to_ndc(cam_transform, offset_pos)
+                    {
+                        let offset_screen =
+                            Vec2::new(offset_ndc.x * 0.5 + 0.5, -offset_ndc.y * 0.5 + 0.5);
+                        (offset_screen - screen_pos).length()
+                    } else {
+                        shockwave.max_radius // Fallback if offset is off-screen
+                    };
+
+                    // Scale ring width proportionally
+                    let scale = screen_radius / shockwave.max_radius;
+
+                    extracted.shockwaves.push(ExtractedShockwave {
+                        center: screen_pos,
+                        intensity: shockwave.intensity * intensity.get(),
+                        progress: lifetime.progress(),
+                        ring_width: shockwave.ring_width * scale,
+                        max_radius: screen_radius,
+                        chromatic: shockwave.chromatic,
+                    });
+                }
+            }
         }
     }
 
@@ -223,6 +290,63 @@ pub fn extract_effects(
                 trail_strength: rain.trail_strength,
                 intensity: intensity.get(),
             });
+        }
+    }
+
+    // Extract world-space heat shimmers (project column to screen space)
+    #[cfg(feature = "distortion")]
+    if let Some((camera, cam_transform)) = cameras.iter().next() {
+        for (shimmer, intensity) in world_heat_shimmers.iter() {
+            if intensity.get() > 0.001 {
+                // Project column corners to screen space
+                let base = shimmer.world_pos;
+                let top = base + Vec3::Y * shimmer.height;
+                let half_width = shimmer.width / 2.0;
+
+                // Use camera's right vector for width offset
+                let cam_right = cam_transform.right();
+
+                // Project 4 corners: base-left, base-right, top-left, top-right
+                let corners = [
+                    base - cam_right * half_width,
+                    base + cam_right * half_width,
+                    top - cam_right * half_width,
+                    top + cam_right * half_width,
+                ];
+
+                // Find screen-space bounding box
+                let mut min_x = f32::MAX;
+                let mut max_x = f32::MIN;
+                let mut min_y = f32::MAX;
+                let mut max_y = f32::MIN;
+                let mut valid_corners = 0;
+
+                for corner in corners {
+                    if let Some(ndc) = camera.world_to_ndc(cam_transform, corner) {
+                        let screen = Vec2::new(ndc.x * 0.5 + 0.5, -ndc.y * 0.5 + 0.5);
+                        min_x = min_x.min(screen.x);
+                        max_x = max_x.max(screen.x);
+                        min_y = min_y.min(screen.y);
+                        max_y = max_y.max(screen.y);
+                        valid_corners += 1;
+                    }
+                }
+
+                // Only add if at least some corners are visible
+                if valid_corners >= 2 {
+                    // bounds = (left, right, top, bottom)
+                    let bounds = Vec4::new(min_x, max_x, min_y, max_y);
+
+                    extracted.world_heat_shimmers.push(ExtractedWorldHeatShimmer {
+                        bounds,
+                        amplitude: shimmer.amplitude,
+                        frequency: shimmer.frequency,
+                        speed: shimmer.speed,
+                        softness: shimmer.softness,
+                        intensity: intensity.get(),
+                    });
+                }
+            }
         }
     }
 

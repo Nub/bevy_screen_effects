@@ -147,3 +147,18 @@ pub struct EmpUniforms {
     pub chromatic_amount: f32,
     pub _padding: f32,
 }
+
+/// GPU representation of world heat shimmer parameters.
+#[derive(Clone, Copy, ShaderType, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct WorldHeatShimmerUniforms {
+    /// Screen-space bounds (left, right, top, bottom) in UV coordinates.
+    pub bounds: Vec4,
+    pub amplitude: f32,
+    pub frequency: f32,
+    pub speed: f32,
+    pub softness: f32,
+    pub time: f32,
+    pub intensity: f32,
+    pub _padding: [f32; 2],
+}

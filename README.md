@@ -73,12 +73,27 @@ bevy_screen_effects = { version = "0.1", default-features = false, features = ["
 Expanding ring of distortion from a point. Perfect for explosions and impacts.
 
 ```rust
+// Screen-space shockwave (normalized coordinates 0-1)
 commands.spawn(ShockwaveBundle {
     shockwave: Shockwave::at(0.5, 0.5)
         .with_intensity(0.25)
         .with_ring_width(0.1)
         .with_chromatic(true),
     lifetime: EffectLifetime::new(0.5),
+    ..default()
+});
+```
+
+#### World Shockwave
+
+World-space shockwave that tracks camera movement. The effect stays anchored to a 3D position as the camera moves.
+
+```rust
+commands.spawn(WorldShockwaveBundle {
+    shockwave: WorldShockwave::at(Vec3::new(10.0, 0.0, 5.0))
+        .with_intensity(0.3)
+        .with_chromatic(true),
+    lifetime: EffectLifetime::new(0.6),
     ..default()
 });
 ```
@@ -346,6 +361,7 @@ cargo run --example showcase
 - **6** - Screen flash
 - **7** - Raindrops
 - **8** - EMP interference
+- **9** - World shockwave (at sphere, tracks camera)
 - **Space** - Shockwave at center
 
 ## License

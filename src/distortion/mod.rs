@@ -7,10 +7,10 @@ mod radial_blur;
 mod water_drops;
 mod heat_haze;
 
-pub use shockwave::{Shockwave, ShockwaveBundle};
+pub use shockwave::{Shockwave, ShockwaveBundle, WorldShockwave, WorldShockwaveBundle};
 pub use radial_blur::{RadialBlur, RadialBlurBundle};
 pub use water_drops::{Raindrops, RaindropsBundle};
-pub use heat_haze::{HeatHaze, HeatHazeBundle};
+pub use heat_haze::{HeatHaze, HeatHazeBundle, WorldHeatShimmer, WorldHeatShimmerBundle};
 
 use bevy::prelude::*;
 

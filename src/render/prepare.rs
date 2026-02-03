@@ -51,6 +51,11 @@ pub struct PreparedEffects {
     pub flash_buffer: Option<Buffer>,
     pub flash_bind_group: Option<BindGroup>,
     pub flash_count: usize,
+
+    /// Uniform buffer for world heat shimmer instances.
+    pub world_heat_shimmer_buffer: Option<Buffer>,
+    pub world_heat_shimmer_bind_group: Option<BindGroup>,
+    pub world_heat_shimmer_count: usize,
 }
 
 impl Default for PreparedEffects {
@@ -80,6 +85,9 @@ impl Default for PreparedEffects {
             flash_buffer: None,
             flash_bind_group: None,
             flash_count: 0,
+            world_heat_shimmer_buffer: None,
+            world_heat_shimmer_bind_group: None,
+            world_heat_shimmer_count: 0,
         }
     }
 }
@@ -103,6 +111,8 @@ pub struct EffectBindGroupLayouts {
     pub vignette_entries: Vec<BindGroupLayoutEntry>,
     pub flash: BindGroupLayout,
     pub flash_entries: Vec<BindGroupLayoutEntry>,
+    pub world_heat_shimmer: BindGroupLayout,
+    pub world_heat_shimmer_entries: Vec<BindGroupLayoutEntry>,
 }
 
 impl FromWorld for EffectBindGroupLayouts {
@@ -134,6 +144,7 @@ impl FromWorld for EffectBindGroupLayouts {
         let (emp, emp_entries) = create_uniform_layout("emp_uniforms_layout");
         let (vignette, vignette_entries) = create_uniform_layout("vignette_uniforms_layout");
         let (flash, flash_entries) = create_uniform_layout("flash_uniforms_layout");
+        let (world_heat_shimmer, world_heat_shimmer_entries) = create_uniform_layout("world_heat_shimmer_uniforms_layout");
 
         Self {
             shockwave,
@@ -152,6 +163,8 @@ impl FromWorld for EffectBindGroupLayouts {
             vignette_entries,
             flash,
             flash_entries,
+            world_heat_shimmer,
+            world_heat_shimmer_entries,
         }
     }
 }
@@ -173,6 +186,7 @@ pub fn prepare_effects(
     prepared.emp_count = 0;
     prepared.vignette_count = 0;
     prepared.flash_count = 0;
+    prepared.world_heat_shimmer_count = 0;
 
     // Prepare shockwaves
     if !extracted.shockwaves.is_empty() {
@@ -348,6 +362,28 @@ pub fn prepare_effects(
         prepared.flash_buffer = Some(buffer);
         prepared.flash_bind_group = Some(bind_group);
         prepared.flash_count = extracted.screen_flashes.len();
+    }
+
+    // Prepare world heat shimmers
+    if !extracted.world_heat_shimmers.is_empty() {
+        let shimmer = &extracted.world_heat_shimmers[0];
+        let uniforms = WorldHeatShimmerUniforms {
+            bounds: shimmer.bounds,
+            amplitude: shimmer.amplitude,
+            frequency: shimmer.frequency,
+            speed: shimmer.speed,
+            softness: shimmer.softness,
+            time: extracted.time,
+            intensity: shimmer.intensity,
+            _padding: [0.0; 2],
+        };
+
+        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "world_heat_shimmer_uniforms");
+        let bind_group = create_uniform_bind_group(&device, &layouts.world_heat_shimmer, &buffer, "world_heat_shimmer_bind_group");
+
+        prepared.world_heat_shimmer_buffer = Some(buffer);
+        prepared.world_heat_shimmer_bind_group = Some(bind_group);
+        prepared.world_heat_shimmer_count = extracted.world_heat_shimmers.len();
     }
 }
 

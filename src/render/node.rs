@@ -40,6 +40,7 @@ impl ViewNode for ScreenEffectsNode {
         if prepared.shockwave_count == 0
             && prepared.radial_blur_count == 0
             && prepared.raindrops_count == 0
+            && prepared.world_heat_shimmer_count == 0
             && prepared.rgb_split_count == 0
             && !prepared.has_glitch
             && prepared.emp_count == 0
@@ -123,7 +124,25 @@ impl ViewNode for ScreenEffectsNode {
             }
         }
 
-        // 4. RGB split
+        // 4. World heat shimmer
+        if prepared.world_heat_shimmer_count > 0 {
+            if let Some(bind_group) = &prepared.world_heat_shimmer_bind_group {
+                if let Some(pipeline_id) = pipelines.world_heat_shimmer {
+                    self.apply_effect(
+                        render_context,
+                        pipeline_cache,
+                        view_target,
+                        &texture_layout.layout,
+                        &sampler,
+                        pipeline_id,
+                        bind_group,
+                        "world_heat_shimmer_pass",
+                    );
+                }
+            }
+        }
+
+        // 5. RGB split
         if prepared.rgb_split_count > 0 {
             if let Some(bind_group) = &prepared.rgb_split_bind_group {
                 if let Some(pipeline_id) = pipelines.rgb_split {

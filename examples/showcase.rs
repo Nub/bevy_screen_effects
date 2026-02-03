@@ -9,6 +9,8 @@
 //! - 6: Trigger screen flash
 //! - 7: Toggle raindrops
 //! - 8: EMP interference
+//! - 9: World-space shockwave (at center sphere)
+//! - 0: World heat shimmer (at cube)
 //! - Space: Spawn shockwave at center
 
 use bevy::prelude::*;
@@ -89,6 +91,8 @@ fn setup(
             6 - Screen Flash\n\
             7 - Raindrops\n\
             8 - EMP Interference\n\
+            9 - World Shockwave (at sphere)\n\
+            0 - Heat Shimmer (at cube)\n\
             Space - Shockwave (center)"),
         TextFont {
             font_size: 20.0,
@@ -115,10 +119,10 @@ fn handle_input(
         return;
     };
 
-    // Get normalized cursor position
+    // Get normalized cursor position (y=0 at top in both window and shader coords)
     let cursor_pos = window
         .cursor_position()
-        .map(|pos| Vec2::new(pos.x / window.width(), 1.0 - pos.y / window.height()))
+        .map(|pos| Vec2::new(pos.x / window.width(), pos.y / window.height()))
         .unwrap_or(Vec2::new(0.5, 0.5));
 
     // 1 or Left Click: Shockwave at cursor
@@ -231,6 +235,30 @@ fn handle_input(
             ..default()
         });
     }
+
+    // 9: World-space shockwave (at the center sphere position)
+    if input.just_pressed(KeyCode::Digit9) {
+        commands.spawn(WorldShockwaveBundle {
+            shockwave: WorldShockwave::at(Vec3::new(0.0, 0.5, 0.0))
+                .with_intensity(0.4)
+                .with_chromatic(true),
+            lifetime: EffectLifetime::new(0.8),
+            ..default()
+        });
+    }
+
+    // 0: World heat shimmer (at a cube position)
+    if input.just_pressed(KeyCode::Digit0) {
+        commands.spawn(WorldHeatShimmerBundle {
+            shimmer: WorldHeatShimmer::at(Vec3::new(1.5, 0.0, 0.0))
+                .with_size(0.8, 1.5)
+                .with_amplitude(0.006)
+                .with_frequency(50.0)
+                .with_speed(0.8),
+            lifetime: EffectLifetime::new(5.0).with_fades(0.3, 1.0),
+            ..default()
+        });
+    }
 }
 
 fn update_info_text(
@@ -249,6 +277,8 @@ fn update_info_text(
             6 - Screen Flash\n\
             7 - Raindrops\n\
             8 - EMP Interference\n\
+            9 - World Shockwave (at sphere)\n\
+            0 - Heat Shimmer (at cube)\n\
             Space - Shockwave (center)\n\n";
 
         **text = format!("{}Active effects: {}", base, count);

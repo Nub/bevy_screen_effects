@@ -51,6 +51,7 @@ impl EffectOrigin {
     }
 
     /// Convert world position to screen position given camera and window.
+    /// Returns normalized screen coords where y=0 is top, y=1 is bottom.
     pub fn from_world(
         world_pos: Vec3,
         camera: &Camera,
@@ -58,6 +59,6 @@ impl EffectOrigin {
     ) -> Option<Self> {
         camera
             .world_to_ndc(camera_transform, world_pos)
-            .map(|ndc| Self(Vec2::new(ndc.x * 0.5 + 0.5, ndc.y * 0.5 + 0.5)))
+            .map(|ndc| Self(Vec2::new(ndc.x * 0.5 + 0.5, -ndc.y * 0.5 + 0.5)))
     }
 }
