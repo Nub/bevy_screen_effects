@@ -1,0 +1,36 @@
+[package]
+name = "bevy_screen_effects"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+description = "Dynamic screen space effects for Bevy games"
+repository = "https://github.com/yourusername/bevy_screen_effects"
+keywords = ["bevy", "gamedev", "post-processing", "shaders", "effects"]
+categories = ["game-development", "graphics", "rendering"]
+
+[features]
+default = ["distortion", "glitch", "feedback"]
+
+# Effect categories
+distortion = []  # shockwave, radial_blur, heat_haze, water_drops
+glitch = []      # rgb_split, scanline, block_displacement, static
+feedback = []    # damage_vignette, flashbang, speed_lines
+
+[dependencies]
+bevy = { version = "0.18", default-features = false, features = [
+    "bevy_render",
+    "bevy_core_pipeline",
+    "bevy_asset",
+] }
+bytemuck = { version = "1.14", features = ["derive"] }
+
+[dev-dependencies]
+bevy = { version = "0.18", features = ["wayland"] }
+
+[[example]]
+name = "showcase"
+path = "examples/showcase.rs"
+
+[[example]]
+name = "shockwave"
+path = "examples/shockwave.rs"
