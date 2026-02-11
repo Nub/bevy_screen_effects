@@ -15,6 +15,7 @@ pub use pipelines::{EffectPipelines, EffectShaders};
 
 use bevy::prelude::*;
 use bevy::asset::embedded_asset;
+use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy::core_pipeline::core_3d::graph::{Core3d, Node3d};
 use bevy::render::{
     render_graph::{RenderLabel, ViewNodeRunner},
@@ -72,14 +73,20 @@ impl Plugin for ScreenEffectsRenderPlugin {
             .add_systems(ExtractSchedule, extract_effects)
             .add_systems(Render, (prepare_effects, queue_effect_pipelines).chain());
 
-        // Add render graph node
+        // Add render graph node to both Core3d and Core2d
         let world = render_app.world_mut();
-        let node = ViewNodeRunner::new(ScreenEffectsNode, world);
+        let node_3d = ViewNodeRunner::new(ScreenEffectsNode, world);
+        let node_2d = ViewNodeRunner::new(ScreenEffectsNode, world);
         let mut render_graph = world.resource_mut::<bevy::render::render_graph::RenderGraph>();
         if let Some(graph_3d) = render_graph.get_sub_graph_mut(Core3d) {
-            graph_3d.add_node(ScreenEffectsLabel, node);
+            graph_3d.add_node(ScreenEffectsLabel, node_3d);
             graph_3d.add_node_edge(Node3d::Tonemapping, ScreenEffectsLabel);
             graph_3d.add_node_edge(ScreenEffectsLabel, Node3d::EndMainPassPostProcessing);
+        }
+        if let Some(graph_2d) = render_graph.get_sub_graph_mut(Core2d) {
+            graph_2d.add_node(ScreenEffectsLabel, node_2d);
+            graph_2d.add_node_edge(Node2d::Tonemapping, ScreenEffectsLabel);
+            graph_2d.add_node_edge(ScreenEffectsLabel, Node2d::EndMainPassPostProcessing);
         }
     }
 }
