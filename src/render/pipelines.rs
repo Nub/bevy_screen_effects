@@ -18,6 +18,7 @@ pub struct EffectShaders {
     pub vignette: Handle<Shader>,
     pub flash: Handle<Shader>,
     pub world_heat_shimmer: Handle<Shader>,
+    pub crt: Handle<Shader>,
 }
 
 /// Cached render pipeline IDs for all effect types.
@@ -32,6 +33,7 @@ pub struct EffectPipelines {
     pub vignette: Option<CachedRenderPipelineId>,
     pub flash: Option<CachedRenderPipelineId>,
     pub world_heat_shimmer: Option<CachedRenderPipelineId>,
+    pub crt: Option<CachedRenderPipelineId>,
 }
 
 /// System to queue effect pipelines for compilation.
@@ -129,6 +131,16 @@ pub fn queue_effect_pipelines(
             &uniforms_layouts.world_heat_shimmer_entries,
             shaders.world_heat_shimmer.clone(),
             "world_heat_shimmer_pipeline",
+        ));
+    }
+
+    if pipelines.crt.is_none() {
+        pipelines.crt = Some(queue_pipeline(
+            &pipeline_cache,
+            &texture_layout.entries,
+            &uniforms_layouts.crt_entries,
+            shaders.crt.clone(),
+            "crt_pipeline",
         ));
     }
 }

@@ -56,6 +56,11 @@ pub struct PreparedEffects {
     pub world_heat_shimmer_buffer: Option<Buffer>,
     pub world_heat_shimmer_bind_group: Option<BindGroup>,
     pub world_heat_shimmer_count: usize,
+
+    /// Uniform buffer for CRT effect.
+    pub crt_buffer: Option<Buffer>,
+    pub crt_bind_group: Option<BindGroup>,
+    pub crt_count: usize,
 }
 
 impl Default for PreparedEffects {
@@ -88,6 +93,9 @@ impl Default for PreparedEffects {
             world_heat_shimmer_buffer: None,
             world_heat_shimmer_bind_group: None,
             world_heat_shimmer_count: 0,
+            crt_buffer: None,
+            crt_bind_group: None,
+            crt_count: 0,
         }
     }
 }
@@ -113,6 +121,8 @@ pub struct EffectBindGroupLayouts {
     pub flash_entries: Vec<BindGroupLayoutEntry>,
     pub world_heat_shimmer: BindGroupLayout,
     pub world_heat_shimmer_entries: Vec<BindGroupLayoutEntry>,
+    pub crt: BindGroupLayout,
+    pub crt_entries: Vec<BindGroupLayoutEntry>,
 }
 
 impl FromWorld for EffectBindGroupLayouts {
@@ -145,6 +155,7 @@ impl FromWorld for EffectBindGroupLayouts {
         let (vignette, vignette_entries) = create_uniform_layout("vignette_uniforms_layout");
         let (flash, flash_entries) = create_uniform_layout("flash_uniforms_layout");
         let (world_heat_shimmer, world_heat_shimmer_entries) = create_uniform_layout("world_heat_shimmer_uniforms_layout");
+        let (crt, crt_entries) = create_uniform_layout("crt_uniforms_layout");
 
         Self {
             shockwave,
@@ -165,6 +176,8 @@ impl FromWorld for EffectBindGroupLayouts {
             flash_entries,
             world_heat_shimmer,
             world_heat_shimmer_entries,
+            crt,
+            crt_entries,
         }
     }
 }
@@ -187,6 +200,7 @@ pub fn prepare_effects(
     prepared.vignette_count = 0;
     prepared.flash_count = 0;
     prepared.world_heat_shimmer_count = 0;
+    prepared.crt_count = 0;
 
     // Prepare shockwaves
     if !extracted.shockwaves.is_empty() {
@@ -384,6 +398,38 @@ pub fn prepare_effects(
         prepared.world_heat_shimmer_buffer = Some(buffer);
         prepared.world_heat_shimmer_bind_group = Some(bind_group);
         prepared.world_heat_shimmer_count = extracted.world_heat_shimmers.len();
+    }
+
+    // Prepare CRT effects
+    if !extracted.crts.is_empty() {
+        let crt = &extracted.crts[0];
+        let uniforms = CrtUniforms {
+            time: extracted.time,
+            intensity: crt.intensity,
+            scanline_intensity: crt.scanline_intensity,
+            scanline_count: crt.scanline_count,
+            curvature: crt.curvature,
+            corner_radius: crt.corner_radius,
+            phosphor_type: crt.phosphor_type,
+            phosphor_intensity: crt.phosphor_intensity,
+            bloom: crt.bloom,
+            vignette: crt.vignette,
+            flicker: crt.flicker,
+            color_bleed: crt.color_bleed,
+            brightness: crt.brightness,
+            saturation: crt.saturation,
+            screen_width: 1920.0,
+            screen_height: 1080.0,
+            mask_shape: crt.mask_shape,
+            _padding: [0.0; 3],
+        };
+
+        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "crt_uniforms");
+        let bind_group = create_uniform_bind_group(&device, &layouts.crt, &buffer, "crt_bind_group");
+
+        prepared.crt_buffer = Some(buffer);
+        prepared.crt_bind_group = Some(bind_group);
+        prepared.crt_count = extracted.crts.len();
     }
 }
 

@@ -44,6 +44,7 @@ impl ViewNode for ScreenEffectsNode {
             && prepared.rgb_split_count == 0
             && !prepared.has_glitch
             && prepared.emp_count == 0
+            && prepared.crt_count == 0
             && prepared.vignette_count == 0
             && prepared.flash_count == 0
         {
@@ -196,7 +197,25 @@ impl ViewNode for ScreenEffectsNode {
             }
         }
 
-        // 7. Damage vignette
+        // 7. CRT effect
+        if prepared.crt_count > 0 {
+            if let Some(bind_group) = &prepared.crt_bind_group {
+                if let Some(pipeline_id) = pipelines.crt {
+                    self.apply_effect(
+                        render_context,
+                        pipeline_cache,
+                        view_target,
+                        &texture_layout.layout,
+                        &sampler,
+                        pipeline_id,
+                        bind_group,
+                        "crt_pass",
+                    );
+                }
+            }
+        }
+
+        // 8. Damage vignette
         if prepared.vignette_count > 0 {
             if let Some(bind_group) = &prepared.vignette_bind_group {
                 if let Some(pipeline_id) = pipelines.vignette {

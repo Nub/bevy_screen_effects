@@ -11,6 +11,7 @@
 //! - 8: EMP interference
 //! - 9: World-space shockwave (at center sphere)
 //! - 0: World heat shimmer (at cube)
+//! - C: CRT effect (retro gaming)
 //! - Space: Spawn shockwave at center
 
 use bevy::prelude::*;
@@ -93,6 +94,7 @@ fn setup(
             8 - EMP Interference\n\
             9 - World Shockwave (at sphere)\n\
             0 - Heat Shimmer (at cube)\n\
+            C - CRT Effect\n\
             Space - Shockwave (center)"),
         TextFont {
             font_size: 20.0,
@@ -243,6 +245,15 @@ fn handle_input(
                 .with_intensity(0.4)
                 .with_chromatic(true),
             lifetime: EffectLifetime::new(0.8),
+            ..default()
+        });
+    }
+
+    // C: CRT effect
+    if input.just_pressed(KeyCode::KeyC) {
+        commands.spawn(CrtEffectBundle {
+            crt: CrtEffect::arcade(),
+            lifetime: EffectLifetime::new(5.0).with_fades(0.3, 1.0),
             ..default()
         });
     }

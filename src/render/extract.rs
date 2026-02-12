@@ -10,7 +10,7 @@ use crate::lifetime::EffectLifetime;
 use crate::distortion::{HeatHaze, RadialBlur, Raindrops, Shockwave, WorldHeatShimmer, WorldShockwave};
 
 #[cfg(feature = "glitch")]
-use crate::glitch::{BlockDisplacement, EmpInterference, RgbSplit, ScanlineGlitch, StaticNoise};
+use crate::glitch::{BlockDisplacement, CrtEffect, EmpInterference, RgbSplit, ScanlineGlitch, StaticNoise};
 
 #[cfg(feature = "feedback")]
 use crate::feedback::{DamageVignette, ScreenFlash, SpeedLines};
@@ -109,6 +109,25 @@ pub struct ExtractedWorldHeatShimmer {
     pub intensity: f32,
 }
 
+/// Extracted CRT effect data.
+#[derive(Component, Clone)]
+pub struct ExtractedCrt {
+    pub scanline_intensity: f32,
+    pub scanline_count: f32,
+    pub curvature: f32,
+    pub corner_radius: f32,
+    pub mask_shape: u32,
+    pub phosphor_type: u32,
+    pub phosphor_intensity: f32,
+    pub bloom: f32,
+    pub vignette: f32,
+    pub flicker: f32,
+    pub color_bleed: f32,
+    pub brightness: f32,
+    pub saturation: f32,
+    pub intensity: f32,
+}
+
 /// Resource holding all extracted effects for the current frame.
 #[derive(Resource, Default)]
 pub struct ExtractedEffects {
@@ -121,6 +140,7 @@ pub struct ExtractedEffects {
     pub screen_flashes: Vec<ExtractedScreenFlash>,
     pub raindrops: Vec<ExtractedRaindrops>,
     pub world_heat_shimmers: Vec<ExtractedWorldHeatShimmer>,
+    pub crts: Vec<ExtractedCrt>,
     pub time: f32,
     pub delta_time: f32,
 }
@@ -136,6 +156,7 @@ impl ExtractedEffects {
             || !self.screen_flashes.is_empty()
             || !self.raindrops.is_empty()
             || !self.world_heat_shimmers.is_empty()
+            || !self.crts.is_empty()
     }
 }
 
@@ -189,6 +210,10 @@ pub fn extract_effects(
         Query<(&EmpInterference, &EffectIntensity), With<ScreenEffect>>,
     >,
 
+    #[cfg(feature = "glitch")] crts: Extract<
+        Query<(&CrtEffect, &EffectIntensity), With<ScreenEffect>>,
+    >,
+
     #[cfg(feature = "feedback")] vignettes: Extract<
         Query<(&DamageVignette, &EffectIntensity), With<ScreenEffect>>,
     >,
@@ -205,6 +230,7 @@ pub fn extract_effects(
     extracted.rgb_splits.clear();
     extracted.glitches.clear();
     extracted.emp_interferences.clear();
+    extracted.crts.clear();
     extracted.damage_vignettes.clear();
     extracted.screen_flashes.clear();
 
@@ -431,6 +457,29 @@ pub fn extract_effects(
                 burst_probability: emp.burst_probability,
                 scanline_displacement: emp.scanline_displacement,
                 chromatic_amount: emp.chromatic_amount,
+                intensity: intensity.get(),
+            });
+        }
+    }
+
+    // Extract CRT effects
+    #[cfg(feature = "glitch")]
+    for (crt, intensity) in crts.iter() {
+        if intensity.get() > 0.001 {
+            extracted.crts.push(ExtractedCrt {
+                scanline_intensity: crt.scanline_intensity,
+                scanline_count: crt.scanline_count,
+                curvature: crt.curvature,
+                corner_radius: crt.corner_radius,
+                mask_shape: crt.mask_shape_u32(),
+                phosphor_type: crt.phosphor_type_u32(),
+                phosphor_intensity: crt.phosphor_intensity,
+                bloom: crt.bloom,
+                vignette: crt.vignette,
+                flicker: crt.flicker,
+                color_bleed: crt.color_bleed,
+                brightness: crt.brightness,
+                saturation: crt.saturation,
                 intensity: intensity.get(),
             });
         }

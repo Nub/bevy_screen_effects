@@ -148,6 +148,35 @@ pub struct EmpUniforms {
     pub _padding: f32,
 }
 
+/// GPU representation of CRT effect parameters.
+#[derive(Clone, Copy, ShaderType, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct CrtUniforms {
+    // Row 1 (16 bytes)
+    pub time: f32,
+    pub intensity: f32,
+    pub scanline_intensity: f32,
+    pub scanline_count: f32,
+    // Row 2 (16 bytes)
+    pub curvature: f32,
+    pub corner_radius: f32,
+    pub phosphor_type: u32,
+    pub phosphor_intensity: f32,
+    // Row 3 (16 bytes)
+    pub bloom: f32,
+    pub vignette: f32,
+    pub flicker: f32,
+    pub color_bleed: f32,
+    // Row 4 (16 bytes)
+    pub brightness: f32,
+    pub saturation: f32,
+    pub screen_width: f32,
+    pub screen_height: f32,
+    // Row 5 (16 bytes)
+    pub mask_shape: u32,
+    pub _padding: [f32; 3],
+}
+
 /// GPU representation of world heat shimmer parameters.
 #[derive(Clone, Copy, ShaderType, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]

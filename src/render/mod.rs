@@ -40,6 +40,7 @@ impl Plugin for ScreenEffectsRenderPlugin {
         embedded_asset!(app, "shaders/vignette.wgsl");
         embedded_asset!(app, "shaders/flash.wgsl");
         embedded_asset!(app, "shaders/world_heat_shimmer.wgsl");
+        embedded_asset!(app, "shaders/crt.wgsl");
     }
 
     fn finish(&self, app: &mut App) {
@@ -59,6 +60,7 @@ impl Plugin for ScreenEffectsRenderPlugin {
             vignette: asset_server.load("embedded://bevy_screen_effects/render/shaders/vignette.wgsl"),
             flash: asset_server.load("embedded://bevy_screen_effects/render/shaders/flash.wgsl"),
             world_heat_shimmer: asset_server.load("embedded://bevy_screen_effects/render/shaders/world_heat_shimmer.wgsl"),
+            crt: asset_server.load("embedded://bevy_screen_effects/render/shaders/crt.wgsl"),
         };
 
         render_app
