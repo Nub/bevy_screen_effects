@@ -58,12 +58,16 @@ fn barrel_distort(uv: vec2<f32>, amount: f32) -> vec2<f32> {
     return uv + centered * amount * r2;
 }
 
-// Rounded rectangle SDF for corner masking
+// Rounded rectangle SDF with aspect-ratio correction.
+// radius is in fraction-of-height units; corners are circular in pixel space.
 fn rounded_rect(uv: vec2<f32>, radius: f32) -> f32 {
-    let centered = abs(uv - 0.5) * 2.0;
-    let size = vec2<f32>(1.0, 1.0);
-    let d = centered - size + vec2<f32>(radius);
-    return length(max(d, vec2<f32>(0.0))) - radius;
+    let tex_size = vec2<f32>(textureDimensions(screen_texture));
+    let aspect = tex_size.x / tex_size.y;
+    // Scale x by aspect so length() produces circular corners in pixel space
+    let p = abs(uv - 0.5) * vec2<f32>(aspect, 1.0);
+    let b = vec2<f32>(aspect * 0.5, 0.5);
+    let q = p - b + vec2<f32>(radius);
+    return length(max(q, vec2<f32>(0.0))) + min(max(q.x, q.y), 0.0) - radius;
 }
 
 // Ellipse SDF for round mask
@@ -161,16 +165,14 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         return vec4<f32>(0.0, 0.0, 0.0, 1.0);
     }
 
-    // Out-of-bounds check after distortion
-    if distorted_uv.x < 0.0 || distorted_uv.x > 1.0 || distorted_uv.y < 0.0 || distorted_uv.y > 1.0 {
-        return vec4<f32>(0.0, 0.0, 0.0, 1.0);
-    }
+    // Clamp distorted UVs to sample edge pixels instead of hard black cutoff
+    let sample_uv = clamp(distorted_uv, vec2<f32>(0.0), vec2<f32>(1.0));
 
     // === 5. COLOR BLEED (sample before other color ops) ===
     let bleed = params.color_bleed * intensity;
-    let r = textureSample(screen_texture, texture_sampler, distorted_uv + vec2<f32>(bleed, 0.0)).r;
-    let g = textureSample(screen_texture, texture_sampler, distorted_uv).g;
-    let b = textureSample(screen_texture, texture_sampler, distorted_uv - vec2<f32>(bleed, 0.0)).b;
+    let r = textureSample(screen_texture, texture_sampler, sample_uv + vec2<f32>(bleed, 0.0)).r;
+    let g = textureSample(screen_texture, texture_sampler, sample_uv).g;
+    let b = textureSample(screen_texture, texture_sampler, sample_uv - vec2<f32>(bleed, 0.0)).b;
     var color = vec3<f32>(r, g, b);
 
     // === 6. BLOOM (cheap 5-tap cross blur of bright areas) ===
@@ -178,11 +180,11 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     if bloom_amount > 0.0 {
         let texel = 1.0 / screen_res;
         let bloom_offset = texel * 2.0;
-        let center = textureSample(screen_texture, texture_sampler, distorted_uv).rgb;
-        let t = textureSample(screen_texture, texture_sampler, distorted_uv + vec2<f32>(0.0, -bloom_offset.y)).rgb;
-        let b2 = textureSample(screen_texture, texture_sampler, distorted_uv + vec2<f32>(0.0, bloom_offset.y)).rgb;
-        let l = textureSample(screen_texture, texture_sampler, distorted_uv + vec2<f32>(-bloom_offset.x, 0.0)).rgb;
-        let r2 = textureSample(screen_texture, texture_sampler, distorted_uv + vec2<f32>(bloom_offset.x, 0.0)).rgb;
+        let center = textureSample(screen_texture, texture_sampler, sample_uv).rgb;
+        let t = textureSample(screen_texture, texture_sampler, sample_uv + vec2<f32>(0.0, -bloom_offset.y)).rgb;
+        let b2 = textureSample(screen_texture, texture_sampler, sample_uv + vec2<f32>(0.0, bloom_offset.y)).rgb;
+        let l = textureSample(screen_texture, texture_sampler, sample_uv + vec2<f32>(-bloom_offset.x, 0.0)).rgb;
+        let r2 = textureSample(screen_texture, texture_sampler, sample_uv + vec2<f32>(bloom_offset.x, 0.0)).rgb;
         let blur = (center + t + b2 + l + r2) * 0.2;
         // Only add bloom from bright areas
         let luma = dot(blur, vec3<f32>(0.299, 0.587, 0.114));
@@ -208,9 +210,11 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
         color *= mix(vec3<f32>(1.0), mask, params.phosphor_intensity * intensity);
     }
 
-    // === 7. VIGNETTE ===
-    let vig_uv = (distorted_uv - 0.5) * 2.0;
-    let vig_dist = length(vig_uv);
+    // === 7. VIGNETTE (aspect-corrected so it's circular in pixel space) ===
+    let vig_aspect = params.screen_width / max(params.screen_height, 1.0);
+    let vig_uv = (distorted_uv - 0.5) * vec2<f32>(2.0 * vig_aspect, 2.0);
+    let vig_max = length(vec2<f32>(vig_aspect, 1.0));
+    let vig_dist = length(vig_uv) / vig_max;
     let vig = smoothstep(1.0, 1.0 - params.vignette * intensity, vig_dist);
     color *= vig;
 

@@ -189,6 +189,7 @@ pub fn prepare_effects(
     extracted: Res<ExtractedEffects>,
     layouts: Res<EffectBindGroupLayouts>,
     mut prepared: ResMut<PreparedEffects>,
+    cameras: Query<&bevy::render::camera::ExtractedCamera>,
 ) {
     // Reset counts
     prepared.shockwave_count = 0;
@@ -418,8 +419,14 @@ pub fn prepare_effects(
             color_bleed: crt.color_bleed,
             brightness: crt.brightness,
             saturation: crt.saturation,
-            screen_width: 1920.0,
-            screen_height: 1080.0,
+            screen_width: cameras.iter().next()
+                .and_then(|c| c.physical_viewport_size)
+                .map(|s| s.x as f32)
+                .unwrap_or(1920.0),
+            screen_height: cameras.iter().next()
+                .and_then(|c| c.physical_viewport_size)
+                .map(|s| s.y as f32)
+                .unwrap_or(1080.0),
             mask_shape: crt.mask_shape,
             _padding: [0.0; 3],
         };

@@ -237,6 +237,7 @@ pub fn extract_effects(
     extracted.time = time.elapsed_secs();
     extracted.delta_time = time.delta_secs();
 
+
     // Extract shockwaves
     #[cfg(feature = "distortion")]
     for (shockwave, intensity, lifetime) in shockwaves.iter() {

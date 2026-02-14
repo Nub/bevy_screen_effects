@@ -11,7 +11,8 @@
 //! - 8: EMP interference
 //! - 9: World-space shockwave (at center sphere)
 //! - 0: World heat shimmer (at cube)
-//! - C: CRT effect (retro gaming)
+//! - C: CRT arcade (square mask)
+//! - V: CRT old TV (round mask)
 //! - Space: Spawn shockwave at center
 
 use bevy::prelude::*;
@@ -94,7 +95,8 @@ fn setup(
             8 - EMP Interference\n\
             9 - World Shockwave (at sphere)\n\
             0 - Heat Shimmer (at cube)\n\
-            C - CRT Effect\n\
+            C - CRT Arcade (square mask)\n\
+            V - CRT Old TV (round mask)\n\
             Space - Shockwave (center)"),
         TextFont {
             font_size: 20.0,
@@ -249,10 +251,19 @@ fn handle_input(
         });
     }
 
-    // C: CRT effect
+    // C: CRT effect (arcade - rounded rect mask)
     if input.just_pressed(KeyCode::KeyC) {
         commands.spawn(CrtEffectBundle {
             crt: CrtEffect::arcade(),
+            lifetime: EffectLifetime::new(5.0).with_fades(0.3, 1.0),
+            ..default()
+        });
+    }
+
+    // V: CRT effect (old TV - ellipse mask)
+    if input.just_pressed(KeyCode::KeyV) {
+        commands.spawn(CrtEffectBundle {
+            crt: CrtEffect::old_tv(),
             lifetime: EffectLifetime::new(5.0).with_fades(0.3, 1.0),
             ..default()
         });
