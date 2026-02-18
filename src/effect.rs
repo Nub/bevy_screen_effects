@@ -35,6 +35,31 @@ impl EffectIntensity {
     }
 }
 
+/// Marker component for cameras that should not receive screen effects.
+///
+/// Add this to a camera entity to skip all screen-space post-processing
+/// (CRT, glitch, flash, etc.) on that camera's view.
+#[derive(Component, Default, Clone, Copy)]
+#[derive(bevy::render::extract_component::ExtractComponent)]
+pub struct SkipScreenEffects;
+
+/// Optional component that targets an effect to a specific camera entity.
+///
+/// When present, the effect only applies to the camera with the given entity.
+/// When absent, the effect applies to all cameras (that don't have `SkipScreenEffects`).
+///
+/// # Example
+/// ```ignore
+/// commands.spawn((
+///     ScreenEffect,
+///     EffectIntensity::new(1.0),
+///     CrtEffect { .. },
+///     EffectTarget(camera_entity),
+/// ));
+/// ```
+#[derive(Component, Clone, Copy)]
+pub struct EffectTarget(pub Entity);
+
 /// Screen position for effects that originate from a point.
 ///
 /// Uses normalized screen coordinates (0.0 to 1.0).

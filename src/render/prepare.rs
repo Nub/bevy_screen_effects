@@ -1,102 +1,106 @@
 //! Preparation of GPU resources from extracted effect data.
 
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 use bevy::render::{
     render_resource::*,
     renderer::{RenderDevice, RenderQueue},
 };
 
-use super::extract::ExtractedEffects;
+use super::extract::{EffectBucket, ExtractedEffects};
 use super::pipeline::*;
 
-/// Prepared GPU data for all active effects this frame.
-#[derive(Resource)]
-pub struct PreparedEffects {
-    /// Uniform buffer for shockwave instances.
+/// Prepared GPU data for one set of effects (one camera or the global bucket).
+#[derive(Default)]
+pub struct PreparedBucket {
     pub shockwave_buffer: Option<Buffer>,
     pub shockwave_bind_group: Option<BindGroup>,
     pub shockwave_count: usize,
 
-    /// Uniform buffer for radial blur instances.
     pub radial_blur_buffer: Option<Buffer>,
     pub radial_blur_bind_group: Option<BindGroup>,
     pub radial_blur_count: usize,
 
-    /// Uniform buffer for raindrops instances.
     pub raindrops_buffer: Option<Buffer>,
     pub raindrops_bind_group: Option<BindGroup>,
     pub raindrops_count: usize,
 
-    /// Uniform buffer for RGB split instances.
     pub rgb_split_buffer: Option<Buffer>,
     pub rgb_split_bind_group: Option<BindGroup>,
     pub rgb_split_count: usize,
 
-    /// Uniform buffer for combined glitch effect.
     pub glitch_buffer: Option<Buffer>,
     pub glitch_bind_group: Option<BindGroup>,
     pub has_glitch: bool,
 
-    /// Uniform buffer for EMP interference effect.
     pub emp_buffer: Option<Buffer>,
     pub emp_bind_group: Option<BindGroup>,
     pub emp_count: usize,
 
-    /// Uniform buffer for damage vignette instances.
     pub vignette_buffer: Option<Buffer>,
     pub vignette_bind_group: Option<BindGroup>,
     pub vignette_count: usize,
 
-    /// Uniform buffer for screen flash instances.
     pub flash_buffer: Option<Buffer>,
     pub flash_bind_group: Option<BindGroup>,
     pub flash_count: usize,
 
-    /// Uniform buffer for world heat shimmer instances.
     pub world_heat_shimmer_buffer: Option<Buffer>,
     pub world_heat_shimmer_bind_group: Option<BindGroup>,
     pub world_heat_shimmer_count: usize,
 
-    /// Uniform buffer for CRT effect.
     pub crt_buffer: Option<Buffer>,
     pub crt_bind_group: Option<BindGroup>,
     pub crt_count: usize,
 }
 
-impl Default for PreparedEffects {
-    fn default() -> Self {
-        Self {
-            shockwave_buffer: None,
-            shockwave_bind_group: None,
-            shockwave_count: 0,
-            radial_blur_buffer: None,
-            radial_blur_bind_group: None,
-            radial_blur_count: 0,
-            raindrops_buffer: None,
-            raindrops_bind_group: None,
-            raindrops_count: 0,
-            rgb_split_buffer: None,
-            rgb_split_bind_group: None,
-            rgb_split_count: 0,
-            glitch_buffer: None,
-            glitch_bind_group: None,
-            has_glitch: false,
-            emp_buffer: None,
-            emp_bind_group: None,
-            emp_count: 0,
-            vignette_buffer: None,
-            vignette_bind_group: None,
-            vignette_count: 0,
-            flash_buffer: None,
-            flash_bind_group: None,
-            flash_count: 0,
-            world_heat_shimmer_buffer: None,
-            world_heat_shimmer_bind_group: None,
-            world_heat_shimmer_count: 0,
-            crt_buffer: None,
-            crt_bind_group: None,
-            crt_count: 0,
-        }
+impl PreparedBucket {
+    pub fn has_any_effects(&self) -> bool {
+        self.shockwave_count > 0
+            || self.radial_blur_count > 0
+            || self.raindrops_count > 0
+            || self.rgb_split_count > 0
+            || self.has_glitch
+            || self.emp_count > 0
+            || self.vignette_count > 0
+            || self.flash_count > 0
+            || self.world_heat_shimmer_count > 0
+            || self.crt_count > 0
+    }
+
+    fn reset(&mut self) {
+        self.shockwave_count = 0;
+        self.radial_blur_count = 0;
+        self.raindrops_count = 0;
+        self.rgb_split_count = 0;
+        self.has_glitch = false;
+        self.emp_count = 0;
+        self.vignette_count = 0;
+        self.flash_count = 0;
+        self.world_heat_shimmer_count = 0;
+        self.crt_count = 0;
+    }
+}
+
+/// Prepared GPU data for all active effects this frame, keyed by camera entity.
+///
+/// `None` key = effects that apply to all cameras.
+/// `Some(entity)` key = effects targeted at a specific camera.
+#[derive(Resource, Default)]
+pub struct PreparedEffects {
+    pub buckets: HashMap<Option<Entity>, PreparedBucket>,
+}
+
+impl PreparedEffects {
+    /// Get the prepared bucket for a camera, combining global (None) + camera-specific.
+    /// Returns None if there are no effects for this camera.
+    pub fn global_bucket(&self) -> Option<&PreparedBucket> {
+        self.buckets.get(&None)
+    }
+
+    pub fn camera_bucket(&self, entity: Entity) -> Option<&PreparedBucket> {
+        self.buckets.get(&Some(entity))
     }
 }
 
@@ -191,21 +195,33 @@ pub fn prepare_effects(
     mut prepared: ResMut<PreparedEffects>,
     cameras: Query<&bevy::render::camera::ExtractedCamera>,
 ) {
-    // Reset counts
-    prepared.shockwave_count = 0;
-    prepared.radial_blur_count = 0;
-    prepared.raindrops_count = 0;
-    prepared.rgb_split_count = 0;
-    prepared.has_glitch = false;
-    prepared.emp_count = 0;
-    prepared.vignette_count = 0;
-    prepared.flash_count = 0;
-    prepared.world_heat_shimmer_count = 0;
-    prepared.crt_count = 0;
+    // Reset all buckets
+    for bucket in prepared.buckets.values_mut() {
+        bucket.reset();
+    }
 
+    // Prepare each extracted bucket
+    for (target, ext_bucket) in &extracted.buckets {
+        if !ext_bucket.has_any() {
+            continue;
+        }
+
+        let prep = prepared.buckets.entry(*target).or_default();
+        prepare_bucket(&device, &queue, &layouts, prep, ext_bucket, extracted.time, &cameras);
+    }
+}
+
+fn prepare_bucket(
+    device: &RenderDevice,
+    queue: &RenderQueue,
+    layouts: &EffectBindGroupLayouts,
+    prepared: &mut PreparedBucket,
+    extracted: &EffectBucket,
+    time: f32,
+    cameras: &Query<&bevy::render::camera::ExtractedCamera>,
+) {
     // Prepare shockwaves
     if !extracted.shockwaves.is_empty() {
-        // For now, just handle the first shockwave (can batch later)
         let sw = &extracted.shockwaves[0];
         let uniforms = ShockwaveUniforms {
             center: sw.center,
@@ -217,8 +233,8 @@ pub fn prepare_effects(
             _padding: 0.0,
         };
 
-        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "shockwave_uniforms");
-        let bind_group = create_uniform_bind_group(&device, &layouts.shockwave, &buffer, "shockwave_bind_group");
+        let buffer = create_uniform_buffer(device, queue, &uniforms, "shockwave_uniforms");
+        let bind_group = create_uniform_bind_group(device, &layouts.shockwave, &buffer, "shockwave_bind_group");
 
         prepared.shockwave_buffer = Some(buffer);
         prepared.shockwave_bind_group = Some(bind_group);
@@ -234,8 +250,8 @@ pub fn prepare_effects(
             samples: blur.samples,
         };
 
-        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "radial_blur_uniforms");
-        let bind_group = create_uniform_bind_group(&device, &layouts.radial_blur, &buffer, "radial_blur_bind_group");
+        let buffer = create_uniform_buffer(device, queue, &uniforms, "radial_blur_uniforms");
+        let bind_group = create_uniform_bind_group(device, &layouts.radial_blur, &buffer, "radial_blur_bind_group");
 
         prepared.radial_blur_buffer = Some(buffer);
         prepared.radial_blur_bind_group = Some(bind_group);
@@ -246,7 +262,7 @@ pub fn prepare_effects(
     if !extracted.raindrops.is_empty() {
         let rain = &extracted.raindrops[0];
         let uniforms = RaindropsUniforms {
-            time: extracted.time,
+            time,
             intensity: rain.intensity,
             drop_size: rain.drop_size,
             density: rain.density,
@@ -256,8 +272,8 @@ pub fn prepare_effects(
             _padding: 0.0,
         };
 
-        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "raindrops_uniforms");
-        let bind_group = create_uniform_bind_group(&device, &layouts.raindrops, &buffer, "raindrops_bind_group");
+        let buffer = create_uniform_buffer(device, queue, &uniforms, "raindrops_uniforms");
+        let bind_group = create_uniform_bind_group(device, &layouts.raindrops, &buffer, "raindrops_bind_group");
 
         prepared.raindrops_buffer = Some(buffer);
         prepared.raindrops_bind_group = Some(bind_group);
@@ -275,8 +291,8 @@ pub fn prepare_effects(
             _padding: 0.0,
         };
 
-        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "rgb_split_uniforms");
-        let bind_group = create_uniform_bind_group(&device, &layouts.rgb_split, &buffer, "rgb_split_bind_group");
+        let buffer = create_uniform_buffer(device, queue, &uniforms, "rgb_split_uniforms");
+        let bind_group = create_uniform_bind_group(device, &layouts.rgb_split, &buffer, "rgb_split_bind_group");
 
         prepared.rgb_split_buffer = Some(buffer);
         prepared.rgb_split_bind_group = Some(bind_group);
@@ -287,7 +303,7 @@ pub fn prepare_effects(
     if !extracted.glitches.is_empty() {
         let glitch = &extracted.glitches[0];
         let uniforms = GlitchUniforms {
-            time: extracted.time,
+            time,
             intensity: glitch.intensity,
             rgb_split_amount: glitch.rgb_split_amount,
             scanline_density: glitch.scanline_density,
@@ -296,8 +312,8 @@ pub fn prepare_effects(
             _padding: 0.0,
         };
 
-        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "glitch_uniforms");
-        let bind_group = create_uniform_bind_group(&device, &layouts.glitch, &buffer, "glitch_bind_group");
+        let buffer = create_uniform_buffer(device, queue, &uniforms, "glitch_uniforms");
+        let bind_group = create_uniform_bind_group(device, &layouts.glitch, &buffer, "glitch_bind_group");
 
         prepared.glitch_buffer = Some(buffer);
         prepared.glitch_bind_group = Some(bind_group);
@@ -308,7 +324,7 @@ pub fn prepare_effects(
     if !extracted.emp_interferences.is_empty() {
         let emp = &extracted.emp_interferences[0];
         let uniforms = EmpUniforms {
-            time: extracted.time,
+            time,
             intensity: emp.intensity,
             flicker_rate: emp.flicker_rate,
             flicker_strength: emp.flicker_strength,
@@ -322,8 +338,8 @@ pub fn prepare_effects(
             _padding: 0.0,
         };
 
-        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "emp_uniforms");
-        let bind_group = create_uniform_bind_group(&device, &layouts.emp, &buffer, "emp_bind_group");
+        let buffer = create_uniform_buffer(device, queue, &uniforms, "emp_uniforms");
+        let bind_group = create_uniform_bind_group(device, &layouts.emp, &buffer, "emp_bind_group");
 
         prepared.emp_buffer = Some(buffer);
         prepared.emp_bind_group = Some(bind_group);
@@ -343,13 +359,13 @@ pub fn prepare_effects(
             size: vignette.size,
             softness: vignette.softness,
             pulse_frequency: vignette.pulse_frequency,
-            time: extracted.time,
+            time,
             intensity: vignette.intensity,
             _padding: [0.0; 3],
         };
 
-        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "vignette_uniforms");
-        let bind_group = create_uniform_bind_group(&device, &layouts.vignette, &buffer, "vignette_bind_group");
+        let buffer = create_uniform_buffer(device, queue, &uniforms, "vignette_uniforms");
+        let bind_group = create_uniform_bind_group(device, &layouts.vignette, &buffer, "vignette_bind_group");
 
         prepared.vignette_buffer = Some(buffer);
         prepared.vignette_bind_group = Some(bind_group);
@@ -371,8 +387,8 @@ pub fn prepare_effects(
             _padding: [0.0; 2],
         };
 
-        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "flash_uniforms");
-        let bind_group = create_uniform_bind_group(&device, &layouts.flash, &buffer, "flash_bind_group");
+        let buffer = create_uniform_buffer(device, queue, &uniforms, "flash_uniforms");
+        let bind_group = create_uniform_bind_group(device, &layouts.flash, &buffer, "flash_bind_group");
 
         prepared.flash_buffer = Some(buffer);
         prepared.flash_bind_group = Some(bind_group);
@@ -388,13 +404,13 @@ pub fn prepare_effects(
             frequency: shimmer.frequency,
             speed: shimmer.speed,
             softness: shimmer.softness,
-            time: extracted.time,
+            time,
             intensity: shimmer.intensity,
             _padding: [0.0; 2],
         };
 
-        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "world_heat_shimmer_uniforms");
-        let bind_group = create_uniform_bind_group(&device, &layouts.world_heat_shimmer, &buffer, "world_heat_shimmer_bind_group");
+        let buffer = create_uniform_buffer(device, queue, &uniforms, "world_heat_shimmer_uniforms");
+        let bind_group = create_uniform_bind_group(device, &layouts.world_heat_shimmer, &buffer, "world_heat_shimmer_bind_group");
 
         prepared.world_heat_shimmer_buffer = Some(buffer);
         prepared.world_heat_shimmer_bind_group = Some(bind_group);
@@ -405,7 +421,7 @@ pub fn prepare_effects(
     if !extracted.crts.is_empty() {
         let crt = &extracted.crts[0];
         let uniforms = CrtUniforms {
-            time: extracted.time,
+            time,
             intensity: crt.intensity,
             scanline_intensity: crt.scanline_intensity,
             scanline_count: crt.scanline_count,
@@ -431,8 +447,8 @@ pub fn prepare_effects(
             _padding: [0.0; 3],
         };
 
-        let buffer = create_uniform_buffer(&device, &queue, &uniforms, "crt_uniforms");
-        let bind_group = create_uniform_bind_group(&device, &layouts.crt, &buffer, "crt_bind_group");
+        let buffer = create_uniform_buffer(device, queue, &uniforms, "crt_uniforms");
+        let bind_group = create_uniform_bind_group(device, &layouts.crt, &buffer, "crt_bind_group");
 
         prepared.crt_buffer = Some(buffer);
         prepared.crt_bind_group = Some(bind_group);

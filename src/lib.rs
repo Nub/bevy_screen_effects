@@ -45,7 +45,7 @@ pub mod glitch;
 pub mod feedback;
 
 pub mod prelude {
-    pub use crate::effect::{ScreenEffect, EffectIntensity};
+    pub use crate::effect::{ScreenEffect, EffectIntensity, EffectTarget, SkipScreenEffects};
     pub use crate::lifetime::{EffectLifetime, EasingFunction};
     pub use crate::ScreenEffectsPlugin;
 

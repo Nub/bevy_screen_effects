@@ -18,10 +18,12 @@ use bevy::asset::embedded_asset;
 use bevy::core_pipeline::core_2d::graph::{Core2d, Node2d};
 use bevy::core_pipeline::core_3d::graph::{Core3d, Node3d};
 use bevy::render::{
+    extract_component::ExtractComponentPlugin,
     render_graph::{RenderLabel, ViewNodeRunner},
     Render, RenderApp,
 };
 
+use crate::effect::SkipScreenEffects;
 use extract::{extract_effects, ExtractedEffects};
 use prepare::{prepare_effects, EffectBindGroupLayouts, PreparedEffects};
 use pipelines::queue_effect_pipelines;
@@ -30,6 +32,9 @@ pub struct ScreenEffectsRenderPlugin;
 
 impl Plugin for ScreenEffectsRenderPlugin {
     fn build(&self, app: &mut App) {
+        // Register extraction of SkipScreenEffects marker to the render world
+        app.add_plugins(ExtractComponentPlugin::<SkipScreenEffects>::default());
+
         // Load embedded shaders
         embedded_asset!(app, "shaders/shockwave.wgsl");
         embedded_asset!(app, "shaders/radial_blur.wgsl");

@@ -8,9 +8,10 @@ use bevy::render::{
     view::ViewTarget,
 };
 
+use crate::effect::SkipScreenEffects;
 use super::pipeline::ScreenTextureBindGroupLayout;
 use super::pipelines::EffectPipelines;
-use super::prepare::PreparedEffects;
+use super::prepare::{PreparedBucket, PreparedEffects};
 
 /// Render graph node that applies all active screen effects.
 ///
@@ -22,32 +23,32 @@ use super::prepare::PreparedEffects;
 pub struct ScreenEffectsNode;
 
 impl ViewNode for ScreenEffectsNode {
-    type ViewQuery = &'static ViewTarget;
+    type ViewQuery = (Entity, &'static ViewTarget, Option<&'static SkipScreenEffects>);
 
     fn run<'w>(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext<'w>,
-        view_target: &ViewTarget,
+        (camera_entity, view_target, skip): (Entity, &ViewTarget, Option<&SkipScreenEffects>),
         world: &'w World,
     ) -> Result<(), NodeRunError> {
+        // Skip all effects for cameras marked with SkipScreenEffects
+        if skip.is_some() {
+            return Ok(());
+        }
         // Get prepared effects data
         let Some(prepared) = world.get_resource::<PreparedEffects>() else {
             return Ok(());
         };
 
-        // Skip if no effects are active
-        if prepared.shockwave_count == 0
-            && prepared.radial_blur_count == 0
-            && prepared.raindrops_count == 0
-            && prepared.world_heat_shimmer_count == 0
-            && prepared.rgb_split_count == 0
-            && !prepared.has_glitch
-            && prepared.emp_count == 0
-            && prepared.crt_count == 0
-            && prepared.vignette_count == 0
-            && prepared.flash_count == 0
-        {
+        // Check if there are any effects for this camera (global + camera-specific)
+        let global = prepared.global_bucket();
+        let targeted = prepared.camera_bucket(camera_entity);
+
+        let has_any = global.map_or(false, |b| b.has_any_effects())
+            || targeted.map_or(false, |b| b.has_any_effects());
+
+        if !has_any {
             return Ok(());
         }
 
@@ -69,185 +70,126 @@ impl ViewNode for ScreenEffectsNode {
             ..default()
         });
 
-        // Apply effects in order, ping-ponging the view target as needed
+        // Helper: apply an effect from whichever bucket has it (camera-specific takes priority)
+        let buckets: [Option<&PreparedBucket>; 2] = [targeted, global];
 
         // 1. Shockwave
-        if prepared.shockwave_count > 0 {
-            if let Some(bind_group) = &prepared.shockwave_bind_group {
-                if let Some(pipeline_id) = pipelines.shockwave {
-                    self.apply_effect(
-                        render_context,
-                        pipeline_cache,
-                        view_target,
-                        &texture_layout.layout,
-                        &sampler,
-                        pipeline_id,
-                        bind_group,
-                        "shockwave_pass",
-                    );
+        for bucket in buckets.iter().flatten() {
+            if bucket.shockwave_count > 0 {
+                if let Some(bind_group) = &bucket.shockwave_bind_group {
+                    if let Some(pipeline_id) = pipelines.shockwave {
+                        self.apply_effect(render_context, pipeline_cache, view_target, &texture_layout.layout, &sampler, pipeline_id, bind_group, "shockwave_pass");
+                    }
                 }
+                break;
             }
         }
 
         // 2. Radial blur
-        if prepared.radial_blur_count > 0 {
-            if let Some(bind_group) = &prepared.radial_blur_bind_group {
-                if let Some(pipeline_id) = pipelines.radial_blur {
-                    self.apply_effect(
-                        render_context,
-                        pipeline_cache,
-                        view_target,
-                        &texture_layout.layout,
-                        &sampler,
-                        pipeline_id,
-                        bind_group,
-                        "radial_blur_pass",
-                    );
+        for bucket in buckets.iter().flatten() {
+            if bucket.radial_blur_count > 0 {
+                if let Some(bind_group) = &bucket.radial_blur_bind_group {
+                    if let Some(pipeline_id) = pipelines.radial_blur {
+                        self.apply_effect(render_context, pipeline_cache, view_target, &texture_layout.layout, &sampler, pipeline_id, bind_group, "radial_blur_pass");
+                    }
                 }
+                break;
             }
         }
 
         // 3. Raindrops
-        if prepared.raindrops_count > 0 {
-            if let Some(bind_group) = &prepared.raindrops_bind_group {
-                if let Some(pipeline_id) = pipelines.raindrops {
-                    self.apply_effect(
-                        render_context,
-                        pipeline_cache,
-                        view_target,
-                        &texture_layout.layout,
-                        &sampler,
-                        pipeline_id,
-                        bind_group,
-                        "raindrops_pass",
-                    );
+        for bucket in buckets.iter().flatten() {
+            if bucket.raindrops_count > 0 {
+                if let Some(bind_group) = &bucket.raindrops_bind_group {
+                    if let Some(pipeline_id) = pipelines.raindrops {
+                        self.apply_effect(render_context, pipeline_cache, view_target, &texture_layout.layout, &sampler, pipeline_id, bind_group, "raindrops_pass");
+                    }
                 }
+                break;
             }
         }
 
         // 4. World heat shimmer
-        if prepared.world_heat_shimmer_count > 0 {
-            if let Some(bind_group) = &prepared.world_heat_shimmer_bind_group {
-                if let Some(pipeline_id) = pipelines.world_heat_shimmer {
-                    self.apply_effect(
-                        render_context,
-                        pipeline_cache,
-                        view_target,
-                        &texture_layout.layout,
-                        &sampler,
-                        pipeline_id,
-                        bind_group,
-                        "world_heat_shimmer_pass",
-                    );
+        for bucket in buckets.iter().flatten() {
+            if bucket.world_heat_shimmer_count > 0 {
+                if let Some(bind_group) = &bucket.world_heat_shimmer_bind_group {
+                    if let Some(pipeline_id) = pipelines.world_heat_shimmer {
+                        self.apply_effect(render_context, pipeline_cache, view_target, &texture_layout.layout, &sampler, pipeline_id, bind_group, "world_heat_shimmer_pass");
+                    }
                 }
+                break;
             }
         }
 
         // 5. RGB split
-        if prepared.rgb_split_count > 0 {
-            if let Some(bind_group) = &prepared.rgb_split_bind_group {
-                if let Some(pipeline_id) = pipelines.rgb_split {
-                    self.apply_effect(
-                        render_context,
-                        pipeline_cache,
-                        view_target,
-                        &texture_layout.layout,
-                        &sampler,
-                        pipeline_id,
-                        bind_group,
-                        "rgb_split_pass",
-                    );
+        for bucket in buckets.iter().flatten() {
+            if bucket.rgb_split_count > 0 {
+                if let Some(bind_group) = &bucket.rgb_split_bind_group {
+                    if let Some(pipeline_id) = pipelines.rgb_split {
+                        self.apply_effect(render_context, pipeline_cache, view_target, &texture_layout.layout, &sampler, pipeline_id, bind_group, "rgb_split_pass");
+                    }
                 }
+                break;
             }
         }
 
-        // 5. Glitch
-        if prepared.has_glitch {
-            if let Some(bind_group) = &prepared.glitch_bind_group {
-                if let Some(pipeline_id) = pipelines.glitch {
-                    self.apply_effect(
-                        render_context,
-                        pipeline_cache,
-                        view_target,
-                        &texture_layout.layout,
-                        &sampler,
-                        pipeline_id,
-                        bind_group,
-                        "glitch_pass",
-                    );
+        // 6. Glitch
+        for bucket in buckets.iter().flatten() {
+            if bucket.has_glitch {
+                if let Some(bind_group) = &bucket.glitch_bind_group {
+                    if let Some(pipeline_id) = pipelines.glitch {
+                        self.apply_effect(render_context, pipeline_cache, view_target, &texture_layout.layout, &sampler, pipeline_id, bind_group, "glitch_pass");
+                    }
                 }
+                break;
             }
         }
 
-        // 6. EMP Interference
-        if prepared.emp_count > 0 {
-            if let Some(bind_group) = &prepared.emp_bind_group {
-                if let Some(pipeline_id) = pipelines.emp {
-                    self.apply_effect(
-                        render_context,
-                        pipeline_cache,
-                        view_target,
-                        &texture_layout.layout,
-                        &sampler,
-                        pipeline_id,
-                        bind_group,
-                        "emp_pass",
-                    );
+        // 7. EMP Interference
+        for bucket in buckets.iter().flatten() {
+            if bucket.emp_count > 0 {
+                if let Some(bind_group) = &bucket.emp_bind_group {
+                    if let Some(pipeline_id) = pipelines.emp {
+                        self.apply_effect(render_context, pipeline_cache, view_target, &texture_layout.layout, &sampler, pipeline_id, bind_group, "emp_pass");
+                    }
                 }
+                break;
             }
         }
 
-        // 7. CRT effect
-        if prepared.crt_count > 0 {
-            if let Some(bind_group) = &prepared.crt_bind_group {
-                if let Some(pipeline_id) = pipelines.crt {
-                    self.apply_effect(
-                        render_context,
-                        pipeline_cache,
-                        view_target,
-                        &texture_layout.layout,
-                        &sampler,
-                        pipeline_id,
-                        bind_group,
-                        "crt_pass",
-                    );
+        // 8. CRT effect
+        for bucket in buckets.iter().flatten() {
+            if bucket.crt_count > 0 {
+                if let Some(bind_group) = &bucket.crt_bind_group {
+                    if let Some(pipeline_id) = pipelines.crt {
+                        self.apply_effect(render_context, pipeline_cache, view_target, &texture_layout.layout, &sampler, pipeline_id, bind_group, "crt_pass");
+                    }
                 }
+                break;
             }
         }
 
-        // 8. Damage vignette
-        if prepared.vignette_count > 0 {
-            if let Some(bind_group) = &prepared.vignette_bind_group {
-                if let Some(pipeline_id) = pipelines.vignette {
-                    self.apply_effect(
-                        render_context,
-                        pipeline_cache,
-                        view_target,
-                        &texture_layout.layout,
-                        &sampler,
-                        pipeline_id,
-                        bind_group,
-                        "vignette_pass",
-                    );
+        // 9. Damage vignette
+        for bucket in buckets.iter().flatten() {
+            if bucket.vignette_count > 0 {
+                if let Some(bind_group) = &bucket.vignette_bind_group {
+                    if let Some(pipeline_id) = pipelines.vignette {
+                        self.apply_effect(render_context, pipeline_cache, view_target, &texture_layout.layout, &sampler, pipeline_id, bind_group, "vignette_pass");
+                    }
                 }
+                break;
             }
         }
 
-        // 8. Screen flash (applied last)
-        if prepared.flash_count > 0 {
-            if let Some(bind_group) = &prepared.flash_bind_group {
-                if let Some(pipeline_id) = pipelines.flash {
-                    self.apply_effect(
-                        render_context,
-                        pipeline_cache,
-                        view_target,
-                        &texture_layout.layout,
-                        &sampler,
-                        pipeline_id,
-                        bind_group,
-                        "flash_pass",
-                    );
+        // 10. Screen flash (applied last)
+        for bucket in buckets.iter().flatten() {
+            if bucket.flash_count > 0 {
+                if let Some(bind_group) = &bucket.flash_bind_group {
+                    if let Some(pipeline_id) = pipelines.flash {
+                        self.apply_effect(render_context, pipeline_cache, view_target, &texture_layout.layout, &sampler, pipeline_id, bind_group, "flash_pass");
+                    }
                 }
+                break;
             }
         }
 
