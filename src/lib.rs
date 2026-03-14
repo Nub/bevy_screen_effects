@@ -32,6 +32,7 @@
 //! ```
 
 mod effect;
+pub mod layer;
 mod lifetime;
 mod render;
 
@@ -46,6 +47,7 @@ pub mod feedback;
 
 pub mod prelude {
     pub use crate::effect::{ScreenEffect, EffectIntensity};
+    pub use crate::layer::{EffectLayer, SkipScreenEffects};
     pub use crate::lifetime::{EffectLifetime, EasingFunction};
     pub use crate::ScreenEffectsPlugin;
 
@@ -60,13 +62,16 @@ pub mod prelude {
 }
 
 use bevy::prelude::*;
+use bevy::render::extract_component::ExtractComponentPlugin;
 
 pub struct ScreenEffectsPlugin;
 
 impl Plugin for ScreenEffectsPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(lifetime::LifetimePlugin)
-            .add_plugins(render::ScreenEffectsRenderPlugin);
+            .add_plugins(render::ScreenEffectsRenderPlugin)
+            .add_plugins(ExtractComponentPlugin::<layer::EffectLayer>::default())
+            .add_plugins(ExtractComponentPlugin::<layer::SkipScreenEffects>::default());
 
         #[cfg(feature = "distortion")]
         app.add_plugins(distortion::DistortionPlugin);

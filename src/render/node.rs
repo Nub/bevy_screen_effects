@@ -8,6 +8,8 @@ use bevy::render::{
     view::ViewTarget,
 };
 
+use crate::layer::{EffectLayer, SkipScreenEffects};
+
 use super::pipeline::ScreenTextureBindGroupLayout;
 use super::pipelines::EffectPipelines;
 use super::prepare::PreparedEffects;
@@ -18,36 +20,37 @@ use super::prepare::PreparedEffects;
 /// 1. Distortion effects (shockwave, radial blur)
 /// 2. Glitch effects (RGB split, scanlines, etc.)
 /// 3. Feedback effects (vignette, flash)
+///
+/// Each effect is filtered by `EffectLayer` bitmask — an effect only applies
+/// to a camera if their layers overlap. Missing layers match everything.
 #[derive(Default)]
 pub struct ScreenEffectsNode;
 
 impl ViewNode for ScreenEffectsNode {
-    type ViewQuery = &'static ViewTarget;
+    type ViewQuery = (&'static ViewTarget, Option<&'static EffectLayer>, Has<SkipScreenEffects>);
 
     fn run<'w>(
         &self,
         _graph: &mut RenderGraphContext,
         render_context: &mut RenderContext<'w>,
-        view_target: &ViewTarget,
+        (view_target, camera_layer, skip_effects): (&ViewTarget, Option<&EffectLayer>, bool),
         world: &'w World,
     ) -> Result<(), NodeRunError> {
+        // SkipScreenEffects = skip everything on this camera
+        if skip_effects {
+            return Ok(());
+        }
+
+        // Camera layer mask: None = match everything
+        let camera_mask = camera_layer.map_or(u32::MAX, |l| l.0);
+
         // Get prepared effects data
         let Some(prepared) = world.get_resource::<PreparedEffects>() else {
             return Ok(());
         };
 
         // Skip if no effects are active
-        if prepared.shockwave_count == 0
-            && prepared.radial_blur_count == 0
-            && prepared.raindrops_count == 0
-            && prepared.world_heat_shimmer_count == 0
-            && prepared.rgb_split_count == 0
-            && !prepared.has_glitch
-            && prepared.emp_count == 0
-            && prepared.crt_count == 0
-            && prepared.vignette_count == 0
-            && prepared.flash_count == 0
-        {
+        if !prepared.has_any() {
             return Ok(());
         }
 
@@ -70,10 +73,11 @@ impl ViewNode for ScreenEffectsNode {
         });
 
         // Apply effects in order, ping-ponging the view target as needed
+        // Each effect is gated by layer mask overlap: (effect_layer & camera_mask) != 0
 
         // 1. Shockwave
-        if prepared.shockwave_count > 0 {
-            if let Some(bind_group) = &prepared.shockwave_bind_group {
+        for instance in &prepared.shockwaves {
+            if (instance.effect_layer & camera_mask) != 0 {
                 if let Some(pipeline_id) = pipelines.shockwave {
                     self.apply_effect(
                         render_context,
@@ -82,16 +86,17 @@ impl ViewNode for ScreenEffectsNode {
                         &texture_layout.layout,
                         &sampler,
                         pipeline_id,
-                        bind_group,
+                        &instance.bind_group,
                         "shockwave_pass",
                     );
                 }
+                break;
             }
         }
 
         // 2. Radial blur
-        if prepared.radial_blur_count > 0 {
-            if let Some(bind_group) = &prepared.radial_blur_bind_group {
+        for instance in &prepared.radial_blurs {
+            if (instance.effect_layer & camera_mask) != 0 {
                 if let Some(pipeline_id) = pipelines.radial_blur {
                     self.apply_effect(
                         render_context,
@@ -100,16 +105,17 @@ impl ViewNode for ScreenEffectsNode {
                         &texture_layout.layout,
                         &sampler,
                         pipeline_id,
-                        bind_group,
+                        &instance.bind_group,
                         "radial_blur_pass",
                     );
                 }
+                break;
             }
         }
 
         // 3. Raindrops
-        if prepared.raindrops_count > 0 {
-            if let Some(bind_group) = &prepared.raindrops_bind_group {
+        for instance in &prepared.raindrops {
+            if (instance.effect_layer & camera_mask) != 0 {
                 if let Some(pipeline_id) = pipelines.raindrops {
                     self.apply_effect(
                         render_context,
@@ -118,16 +124,17 @@ impl ViewNode for ScreenEffectsNode {
                         &texture_layout.layout,
                         &sampler,
                         pipeline_id,
-                        bind_group,
+                        &instance.bind_group,
                         "raindrops_pass",
                     );
                 }
+                break;
             }
         }
 
         // 4. World heat shimmer
-        if prepared.world_heat_shimmer_count > 0 {
-            if let Some(bind_group) = &prepared.world_heat_shimmer_bind_group {
+        for instance in &prepared.world_heat_shimmers {
+            if (instance.effect_layer & camera_mask) != 0 {
                 if let Some(pipeline_id) = pipelines.world_heat_shimmer {
                     self.apply_effect(
                         render_context,
@@ -136,16 +143,17 @@ impl ViewNode for ScreenEffectsNode {
                         &texture_layout.layout,
                         &sampler,
                         pipeline_id,
-                        bind_group,
+                        &instance.bind_group,
                         "world_heat_shimmer_pass",
                     );
                 }
+                break;
             }
         }
 
         // 5. RGB split
-        if prepared.rgb_split_count > 0 {
-            if let Some(bind_group) = &prepared.rgb_split_bind_group {
+        for instance in &prepared.rgb_splits {
+            if (instance.effect_layer & camera_mask) != 0 {
                 if let Some(pipeline_id) = pipelines.rgb_split {
                     self.apply_effect(
                         render_context,
@@ -154,16 +162,17 @@ impl ViewNode for ScreenEffectsNode {
                         &texture_layout.layout,
                         &sampler,
                         pipeline_id,
-                        bind_group,
+                        &instance.bind_group,
                         "rgb_split_pass",
                     );
                 }
+                break;
             }
         }
 
-        // 5. Glitch
-        if prepared.has_glitch {
-            if let Some(bind_group) = &prepared.glitch_bind_group {
+        // 6. Glitch
+        for instance in &prepared.glitches {
+            if (instance.effect_layer & camera_mask) != 0 {
                 if let Some(pipeline_id) = pipelines.glitch {
                     self.apply_effect(
                         render_context,
@@ -172,16 +181,17 @@ impl ViewNode for ScreenEffectsNode {
                         &texture_layout.layout,
                         &sampler,
                         pipeline_id,
-                        bind_group,
+                        &instance.bind_group,
                         "glitch_pass",
                     );
                 }
+                break;
             }
         }
 
-        // 6. EMP Interference
-        if prepared.emp_count > 0 {
-            if let Some(bind_group) = &prepared.emp_bind_group {
+        // 7. EMP Interference
+        for instance in &prepared.emps {
+            if (instance.effect_layer & camera_mask) != 0 {
                 if let Some(pipeline_id) = pipelines.emp {
                     self.apply_effect(
                         render_context,
@@ -190,16 +200,17 @@ impl ViewNode for ScreenEffectsNode {
                         &texture_layout.layout,
                         &sampler,
                         pipeline_id,
-                        bind_group,
+                        &instance.bind_group,
                         "emp_pass",
                     );
                 }
+                break;
             }
         }
 
-        // 7. CRT effect
-        if prepared.crt_count > 0 {
-            if let Some(bind_group) = &prepared.crt_bind_group {
+        // 8. CRT effect
+        for instance in &prepared.crts {
+            if (instance.effect_layer & camera_mask) != 0 {
                 if let Some(pipeline_id) = pipelines.crt {
                     self.apply_effect(
                         render_context,
@@ -208,16 +219,17 @@ impl ViewNode for ScreenEffectsNode {
                         &texture_layout.layout,
                         &sampler,
                         pipeline_id,
-                        bind_group,
+                        &instance.bind_group,
                         "crt_pass",
                     );
                 }
+                break;
             }
         }
 
-        // 8. Damage vignette
-        if prepared.vignette_count > 0 {
-            if let Some(bind_group) = &prepared.vignette_bind_group {
+        // 9. Damage vignette
+        for instance in &prepared.vignettes {
+            if (instance.effect_layer & camera_mask) != 0 {
                 if let Some(pipeline_id) = pipelines.vignette {
                     self.apply_effect(
                         render_context,
@@ -226,16 +238,17 @@ impl ViewNode for ScreenEffectsNode {
                         &texture_layout.layout,
                         &sampler,
                         pipeline_id,
-                        bind_group,
+                        &instance.bind_group,
                         "vignette_pass",
                     );
                 }
+                break;
             }
         }
 
-        // 8. Screen flash (applied last)
-        if prepared.flash_count > 0 {
-            if let Some(bind_group) = &prepared.flash_bind_group {
+        // 10. Screen flash (applied last)
+        for instance in &prepared.flashes {
+            if (instance.effect_layer & camera_mask) != 0 {
                 if let Some(pipeline_id) = pipelines.flash {
                     self.apply_effect(
                         render_context,
@@ -244,10 +257,11 @@ impl ViewNode for ScreenEffectsNode {
                         &texture_layout.layout,
                         &sampler,
                         pipeline_id,
-                        bind_group,
+                        &instance.bind_group,
                         "flash_pass",
                     );
                 }
+                break;
             }
         }
 

@@ -4,6 +4,7 @@ use bevy::prelude::*;
 use bevy::render::Extract;
 
 use crate::effect::{EffectIntensity, ScreenEffect};
+use crate::layer::EffectLayer;
 use crate::lifetime::EffectLifetime;
 
 #[cfg(feature = "distortion")]
@@ -24,6 +25,7 @@ pub struct ExtractedShockwave {
     pub ring_width: f32,
     pub max_radius: f32,
     pub chromatic: bool,
+    pub effect_layer: u32,
 }
 
 /// Extracted radial blur effect data.
@@ -32,6 +34,7 @@ pub struct ExtractedRadialBlur {
     pub center: Vec2,
     pub intensity: f32,
     pub samples: u32,
+    pub effect_layer: u32,
 }
 
 /// Extracted RGB split effect data.
@@ -41,6 +44,7 @@ pub struct ExtractedRgbSplit {
     pub green_offset: Vec2,
     pub blue_offset: Vec2,
     pub intensity: f32,
+    pub effect_layer: u32,
 }
 
 /// Extracted glitch effect data (combined for efficiency).
@@ -51,6 +55,7 @@ pub struct ExtractedGlitch {
     pub scanline_density: f32,
     pub block_size: Vec2,
     pub noise_amount: f32,
+    pub effect_layer: u32,
 }
 
 /// Extracted damage vignette effect data.
@@ -61,6 +66,7 @@ pub struct ExtractedDamageVignette {
     pub softness: f32,
     pub pulse_frequency: f32,
     pub intensity: f32,
+    pub effect_layer: u32,
 }
 
 /// Extracted screen flash effect data.
@@ -69,6 +75,7 @@ pub struct ExtractedScreenFlash {
     pub color: LinearRgba,
     pub blend: f32,
     pub intensity: f32,
+    pub effect_layer: u32,
 }
 
 /// Extracted raindrops effect data.
@@ -80,6 +87,7 @@ pub struct ExtractedRaindrops {
     pub refraction: f32,
     pub trail_strength: f32,
     pub intensity: f32,
+    pub effect_layer: u32,
 }
 
 /// Extracted EMP interference effect data.
@@ -95,6 +103,7 @@ pub struct ExtractedEmpInterference {
     pub scanline_displacement: f32,
     pub chromatic_amount: f32,
     pub intensity: f32,
+    pub effect_layer: u32,
 }
 
 /// Extracted world-space heat shimmer effect data.
@@ -107,6 +116,7 @@ pub struct ExtractedWorldHeatShimmer {
     pub speed: f32,
     pub softness: f32,
     pub intensity: f32,
+    pub effect_layer: u32,
 }
 
 /// Extracted CRT effect data.
@@ -126,6 +136,7 @@ pub struct ExtractedCrt {
     pub brightness: f32,
     pub saturation: f32,
     pub intensity: f32,
+    pub effect_layer: u32,
 }
 
 /// Resource holding all extracted effects for the current frame.
@@ -167,11 +178,11 @@ pub fn extract_effects(
     time: Extract<Res<Time>>,
 
     #[cfg(feature = "distortion")] shockwaves: Extract<
-        Query<(&Shockwave, &EffectIntensity, &EffectLifetime), With<ScreenEffect>>,
+        Query<(&Shockwave, &EffectIntensity, &EffectLifetime, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "distortion")] world_shockwaves: Extract<
-        Query<(&WorldShockwave, &EffectIntensity, &EffectLifetime), With<ScreenEffect>>,
+        Query<(&WorldShockwave, &EffectIntensity, &EffectLifetime, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "distortion")] cameras: Extract<
@@ -179,47 +190,47 @@ pub fn extract_effects(
     >,
 
     #[cfg(feature = "distortion")] radial_blurs: Extract<
-        Query<(&RadialBlur, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&RadialBlur, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "distortion")] raindrops: Extract<
-        Query<(&Raindrops, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&Raindrops, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "distortion")] world_heat_shimmers: Extract<
-        Query<(&WorldHeatShimmer, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&WorldHeatShimmer, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "glitch")] rgb_splits: Extract<
-        Query<(&RgbSplit, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&RgbSplit, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "glitch")] scanlines: Extract<
-        Query<(&ScanlineGlitch, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&ScanlineGlitch, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "glitch")] blocks: Extract<
-        Query<(&BlockDisplacement, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&BlockDisplacement, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "glitch")] statics: Extract<
-        Query<(&StaticNoise, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&StaticNoise, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "glitch")] emps: Extract<
-        Query<(&EmpInterference, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&EmpInterference, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "glitch")] crts: Extract<
-        Query<(&CrtEffect, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&CrtEffect, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "feedback")] vignettes: Extract<
-        Query<(&DamageVignette, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&DamageVignette, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 
     #[cfg(feature = "feedback")] flashes: Extract<
-        Query<(&ScreenFlash, &EffectIntensity), With<ScreenEffect>>,
+        Query<(&ScreenFlash, &EffectIntensity, Option<&EffectLayer>), With<ScreenEffect>>,
     >,
 ) {
     // Clear previous frame's data
@@ -240,7 +251,7 @@ pub fn extract_effects(
 
     // Extract shockwaves
     #[cfg(feature = "distortion")]
-    for (shockwave, intensity, lifetime) in shockwaves.iter() {
+    for (shockwave, intensity, lifetime, layer) in shockwaves.iter() {
         if intensity.get() > 0.001 {
             extracted.shockwaves.push(ExtractedShockwave {
                 center: shockwave.center,
@@ -249,6 +260,7 @@ pub fn extract_effects(
                 ring_width: shockwave.ring_width,
                 max_radius: shockwave.max_radius,
                 chromatic: shockwave.chromatic,
+                effect_layer: layer.map_or(u32::MAX, |l| l.0),
             });
         }
     }
@@ -256,7 +268,7 @@ pub fn extract_effects(
     // Extract world-space shockwaves (project to screen space each frame)
     #[cfg(feature = "distortion")]
     if let Some((camera, cam_transform)) = cameras.iter().next() {
-        for (shockwave, intensity, lifetime) in world_shockwaves.iter() {
+        for (shockwave, intensity, lifetime, layer) in world_shockwaves.iter() {
             if intensity.get() > 0.001 {
                 let center_ndc = camera.world_to_ndc(cam_transform, shockwave.world_pos);
                 if let Some(ndc) = center_ndc {
@@ -287,6 +299,7 @@ pub fn extract_effects(
                         ring_width: shockwave.ring_width * scale,
                         max_radius: screen_radius,
                         chromatic: shockwave.chromatic,
+                        effect_layer: layer.map_or(u32::MAX, |l| l.0),
                     });
                 }
             }
@@ -295,19 +308,20 @@ pub fn extract_effects(
 
     // Extract radial blurs
     #[cfg(feature = "distortion")]
-    for (blur, intensity) in radial_blurs.iter() {
+    for (blur, intensity, layer) in radial_blurs.iter() {
         if intensity.get() > 0.001 {
             extracted.radial_blurs.push(ExtractedRadialBlur {
                 center: blur.center,
                 intensity: blur.intensity * intensity.get(),
                 samples: blur.samples,
+                effect_layer: layer.map_or(u32::MAX, |l| l.0),
             });
         }
     }
 
     // Extract raindrops
     #[cfg(feature = "distortion")]
-    for (rain, intensity) in raindrops.iter() {
+    for (rain, intensity, layer) in raindrops.iter() {
         if intensity.get() > 0.001 {
             extracted.raindrops.push(ExtractedRaindrops {
                 drop_size: rain.drop_size,
@@ -316,6 +330,7 @@ pub fn extract_effects(
                 refraction: rain.refraction,
                 trail_strength: rain.trail_strength,
                 intensity: intensity.get(),
+                effect_layer: layer.map_or(u32::MAX, |l| l.0),
             });
         }
     }
@@ -323,7 +338,7 @@ pub fn extract_effects(
     // Extract world-space heat shimmers (project column to screen space)
     #[cfg(feature = "distortion")]
     if let Some((camera, cam_transform)) = cameras.iter().next() {
-        for (shimmer, intensity) in world_heat_shimmers.iter() {
+        for (shimmer, intensity, layer) in world_heat_shimmers.iter() {
             if intensity.get() > 0.001 {
                 // Project column corners to screen space
                 let base = shimmer.world_pos;
@@ -371,6 +386,7 @@ pub fn extract_effects(
                         speed: shimmer.speed,
                         softness: shimmer.softness,
                         intensity: intensity.get(),
+                        effect_layer: layer.map_or(u32::MAX, |l| l.0),
                     });
                 }
             }
@@ -379,13 +395,14 @@ pub fn extract_effects(
 
     // Extract RGB splits
     #[cfg(feature = "glitch")]
-    for (split, intensity) in rgb_splits.iter() {
+    for (split, intensity, layer) in rgb_splits.iter() {
         if intensity.get() > 0.001 {
             extracted.rgb_splits.push(ExtractedRgbSplit {
                 red_offset: split.red_offset,
                 green_offset: split.green_offset,
                 blue_offset: split.blue_offset,
                 intensity: intensity.get(),
+                effect_layer: layer.map_or(u32::MAX, |l| l.0),
             });
         }
     }
@@ -395,28 +412,32 @@ pub fn extract_effects(
     {
         let mut total_scanline_intensity = 0.0;
         let mut total_scanline_density = 0.0;
+        let mut glitch_layer_mask: u32 = 0;
 
-        for (scanline, intensity) in scanlines.iter() {
+        for (scanline, intensity, layer) in scanlines.iter() {
             if intensity.get() > 0.001 {
                 total_scanline_intensity += intensity.get();
                 total_scanline_density = scanline.density; // Use last one's density
+                glitch_layer_mask |= layer.map_or(u32::MAX, |l| l.0);
             }
         }
 
         let mut total_block_intensity = 0.0;
         let mut block_size = Vec2::new(0.1, 0.05);
 
-        for (block, intensity) in blocks.iter() {
+        for (block, intensity, layer) in blocks.iter() {
             if intensity.get() > 0.001 {
                 total_block_intensity += intensity.get();
                 block_size = block.block_size;
+                glitch_layer_mask |= layer.map_or(u32::MAX, |l| l.0);
             }
         }
 
         let mut total_noise_intensity = 0.0;
-        for (_, intensity) in statics.iter() {
+        for (_, intensity, layer) in statics.iter() {
             if intensity.get() > 0.001 {
                 total_noise_intensity += intensity.get();
+                glitch_layer_mask |= layer.map_or(u32::MAX, |l| l.0);
             }
         }
 
@@ -425,6 +446,10 @@ pub fn extract_effects(
             || total_block_intensity > 0.0
             || total_noise_intensity > 0.0
         {
+            // If no layer was set on any contributor, default to ALL
+            if glitch_layer_mask == 0 {
+                glitch_layer_mask = u32::MAX;
+            }
             extracted.glitches.push(ExtractedGlitch {
                 intensity: (total_scanline_intensity + total_block_intensity + total_noise_intensity)
                     .min(1.0),
@@ -440,13 +465,14 @@ pub fn extract_effects(
                     Vec2::ZERO
                 },
                 noise_amount: total_noise_intensity.min(1.0),
+                effect_layer: glitch_layer_mask,
             });
         }
     }
 
     // Extract EMP interference effects
     #[cfg(feature = "glitch")]
-    for (emp, intensity) in emps.iter() {
+    for (emp, intensity, layer) in emps.iter() {
         if intensity.get() > 0.001 {
             extracted.emp_interferences.push(ExtractedEmpInterference {
                 flicker_rate: emp.flicker_rate,
@@ -459,13 +485,14 @@ pub fn extract_effects(
                 scanline_displacement: emp.scanline_displacement,
                 chromatic_amount: emp.chromatic_amount,
                 intensity: intensity.get(),
+                effect_layer: layer.map_or(u32::MAX, |l| l.0),
             });
         }
     }
 
     // Extract CRT effects
     #[cfg(feature = "glitch")]
-    for (crt, intensity) in crts.iter() {
+    for (crt, intensity, layer) in crts.iter() {
         if intensity.get() > 0.001 {
             extracted.crts.push(ExtractedCrt {
                 scanline_intensity: crt.scanline_intensity,
@@ -482,13 +509,14 @@ pub fn extract_effects(
                 brightness: crt.brightness,
                 saturation: crt.saturation,
                 intensity: intensity.get(),
+                effect_layer: layer.map_or(u32::MAX, |l| l.0),
             });
         }
     }
 
     // Extract damage vignettes
     #[cfg(feature = "feedback")]
-    for (vignette, intensity) in vignettes.iter() {
+    for (vignette, intensity, layer) in vignettes.iter() {
         if intensity.get() > 0.001 {
             extracted.damage_vignettes.push(ExtractedDamageVignette {
                 color: vignette.color.into(),
@@ -496,18 +524,20 @@ pub fn extract_effects(
                 softness: vignette.softness,
                 pulse_frequency: vignette.pulse_frequency,
                 intensity: intensity.get(),
+                effect_layer: layer.map_or(u32::MAX, |l| l.0),
             });
         }
     }
 
     // Extract screen flashes
     #[cfg(feature = "feedback")]
-    for (flash, intensity) in flashes.iter() {
+    for (flash, intensity, layer) in flashes.iter() {
         if intensity.get() > 0.001 {
             extracted.screen_flashes.push(ExtractedScreenFlash {
                 color: flash.color.into(),
                 blend: flash.blend,
                 intensity: intensity.get(),
+                effect_layer: layer.map_or(u32::MAX, |l| l.0),
             });
         }
     }
