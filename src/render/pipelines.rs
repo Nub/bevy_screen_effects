@@ -21,19 +21,59 @@ pub struct EffectShaders {
     pub crt: Handle<Shader>,
 }
 
+/// LDR + HDR pipeline pair for a single effect.
+#[derive(Default, Clone, Copy)]
+pub struct FormatPipeline {
+    pub ldr: Option<CachedRenderPipelineId>,
+    pub hdr: Option<CachedRenderPipelineId>,
+}
+
+impl FormatPipeline {
+    /// Select the pipeline matching the given texture format.
+    pub fn for_format(&self, format: TextureFormat) -> Option<CachedRenderPipelineId> {
+        match format {
+            TextureFormat::Rgba16Float => self.hdr,
+            _ => self.ldr,
+        }
+    }
+}
+
 /// Cached render pipeline IDs for all effect types.
 #[derive(Resource, Default)]
 pub struct EffectPipelines {
-    pub shockwave: Option<CachedRenderPipelineId>,
-    pub radial_blur: Option<CachedRenderPipelineId>,
-    pub raindrops: Option<CachedRenderPipelineId>,
-    pub rgb_split: Option<CachedRenderPipelineId>,
-    pub glitch: Option<CachedRenderPipelineId>,
-    pub emp: Option<CachedRenderPipelineId>,
-    pub vignette: Option<CachedRenderPipelineId>,
-    pub flash: Option<CachedRenderPipelineId>,
-    pub world_heat_shimmer: Option<CachedRenderPipelineId>,
-    pub crt: Option<CachedRenderPipelineId>,
+    pub shockwave: FormatPipeline,
+    pub radial_blur: FormatPipeline,
+    pub raindrops: FormatPipeline,
+    pub rgb_split: FormatPipeline,
+    pub glitch: FormatPipeline,
+    pub emp: FormatPipeline,
+    pub vignette: FormatPipeline,
+    pub flash: FormatPipeline,
+    pub world_heat_shimmer: FormatPipeline,
+    pub crt: FormatPipeline,
+}
+
+/// Queue both LDR and HDR variants of a pipeline if not already cached.
+fn queue_both(
+    fp: &mut FormatPipeline,
+    pipeline_cache: &PipelineCache,
+    texture_entries: &[BindGroupLayoutEntry],
+    uniforms_entries: &[BindGroupLayoutEntry],
+    shader: Handle<Shader>,
+    label: &'static str,
+) {
+    if fp.ldr.is_none() {
+        fp.ldr = Some(queue_pipeline(
+            pipeline_cache, texture_entries, uniforms_entries,
+            shader.clone(), label, TextureFormat::Rgba8UnormSrgb,
+        ));
+    }
+    if fp.hdr.is_none() {
+        fp.hdr = Some(queue_pipeline(
+            pipeline_cache, texture_entries, uniforms_entries,
+            shader, label, TextureFormat::Rgba16Float,
+        ));
+    }
 }
 
 /// System to queue effect pipelines for compilation.
@@ -44,105 +84,26 @@ pub fn queue_effect_pipelines(
     texture_layout: Res<ScreenTextureBindGroupLayout>,
     uniforms_layouts: Res<EffectBindGroupLayouts>,
 ) {
-    if pipelines.shockwave.is_none() {
-        pipelines.shockwave = Some(queue_pipeline(
-            &pipeline_cache,
-            &texture_layout.entries,
-            &uniforms_layouts.shockwave_entries,
-            shaders.shockwave.clone(),
-            "shockwave_pipeline",
-        ));
-    }
-
-    if pipelines.radial_blur.is_none() {
-        pipelines.radial_blur = Some(queue_pipeline(
-            &pipeline_cache,
-            &texture_layout.entries,
-            &uniforms_layouts.radial_blur_entries,
-            shaders.radial_blur.clone(),
-            "radial_blur_pipeline",
-        ));
-    }
-
-    if pipelines.raindrops.is_none() {
-        pipelines.raindrops = Some(queue_pipeline(
-            &pipeline_cache,
-            &texture_layout.entries,
-            &uniforms_layouts.raindrops_entries,
-            shaders.raindrops.clone(),
-            "raindrops_pipeline",
-        ));
-    }
-
-    if pipelines.rgb_split.is_none() {
-        pipelines.rgb_split = Some(queue_pipeline(
-            &pipeline_cache,
-            &texture_layout.entries,
-            &uniforms_layouts.rgb_split_entries,
-            shaders.rgb_split.clone(),
-            "rgb_split_pipeline",
-        ));
-    }
-
-    if pipelines.glitch.is_none() {
-        pipelines.glitch = Some(queue_pipeline(
-            &pipeline_cache,
-            &texture_layout.entries,
-            &uniforms_layouts.glitch_entries,
-            shaders.glitch.clone(),
-            "glitch_pipeline",
-        ));
-    }
-
-    if pipelines.emp.is_none() {
-        pipelines.emp = Some(queue_pipeline(
-            &pipeline_cache,
-            &texture_layout.entries,
-            &uniforms_layouts.emp_entries,
-            shaders.emp.clone(),
-            "emp_pipeline",
-        ));
-    }
-
-    if pipelines.vignette.is_none() {
-        pipelines.vignette = Some(queue_pipeline(
-            &pipeline_cache,
-            &texture_layout.entries,
-            &uniforms_layouts.vignette_entries,
-            shaders.vignette.clone(),
-            "vignette_pipeline",
-        ));
-    }
-
-    if pipelines.flash.is_none() {
-        pipelines.flash = Some(queue_pipeline(
-            &pipeline_cache,
-            &texture_layout.entries,
-            &uniforms_layouts.flash_entries,
-            shaders.flash.clone(),
-            "flash_pipeline",
-        ));
-    }
-
-    if pipelines.world_heat_shimmer.is_none() {
-        pipelines.world_heat_shimmer = Some(queue_pipeline(
-            &pipeline_cache,
-            &texture_layout.entries,
-            &uniforms_layouts.world_heat_shimmer_entries,
-            shaders.world_heat_shimmer.clone(),
-            "world_heat_shimmer_pipeline",
-        ));
-    }
-
-    if pipelines.crt.is_none() {
-        pipelines.crt = Some(queue_pipeline(
-            &pipeline_cache,
-            &texture_layout.entries,
-            &uniforms_layouts.crt_entries,
-            shaders.crt.clone(),
-            "crt_pipeline",
-        ));
-    }
+    queue_both(&mut pipelines.shockwave, &pipeline_cache, &texture_layout.entries,
+        &uniforms_layouts.shockwave_entries, shaders.shockwave.clone(), "shockwave_pipeline");
+    queue_both(&mut pipelines.radial_blur, &pipeline_cache, &texture_layout.entries,
+        &uniforms_layouts.radial_blur_entries, shaders.radial_blur.clone(), "radial_blur_pipeline");
+    queue_both(&mut pipelines.raindrops, &pipeline_cache, &texture_layout.entries,
+        &uniforms_layouts.raindrops_entries, shaders.raindrops.clone(), "raindrops_pipeline");
+    queue_both(&mut pipelines.rgb_split, &pipeline_cache, &texture_layout.entries,
+        &uniforms_layouts.rgb_split_entries, shaders.rgb_split.clone(), "rgb_split_pipeline");
+    queue_both(&mut pipelines.glitch, &pipeline_cache, &texture_layout.entries,
+        &uniforms_layouts.glitch_entries, shaders.glitch.clone(), "glitch_pipeline");
+    queue_both(&mut pipelines.emp, &pipeline_cache, &texture_layout.entries,
+        &uniforms_layouts.emp_entries, shaders.emp.clone(), "emp_pipeline");
+    queue_both(&mut pipelines.vignette, &pipeline_cache, &texture_layout.entries,
+        &uniforms_layouts.vignette_entries, shaders.vignette.clone(), "vignette_pipeline");
+    queue_both(&mut pipelines.flash, &pipeline_cache, &texture_layout.entries,
+        &uniforms_layouts.flash_entries, shaders.flash.clone(), "flash_pipeline");
+    queue_both(&mut pipelines.world_heat_shimmer, &pipeline_cache, &texture_layout.entries,
+        &uniforms_layouts.world_heat_shimmer_entries, shaders.world_heat_shimmer.clone(), "world_heat_shimmer_pipeline");
+    queue_both(&mut pipelines.crt, &pipeline_cache, &texture_layout.entries,
+        &uniforms_layouts.crt_entries, shaders.crt.clone(), "crt_pipeline");
 }
 
 fn queue_pipeline(
@@ -151,6 +112,7 @@ fn queue_pipeline(
     uniforms_layout_entries: &[BindGroupLayoutEntry],
     shader: Handle<Shader>,
     label: &'static str,
+    format: TextureFormat,
 ) -> CachedRenderPipelineId {
     pipeline_cache.queue_render_pipeline(RenderPipelineDescriptor {
         label: Some(label.into()),
@@ -175,9 +137,7 @@ fn queue_pipeline(
             shader_defs: vec![],
             entry_point: Some("fragment".into()),
             targets: vec![Some(ColorTargetState {
-                // Use standard sRGB format for non-HDR rendering
-                // TODO: Add HDR support with pipeline specialization
-                format: TextureFormat::Rgba8UnormSrgb,
+                format,
                 blend: Some(BlendState::ALPHA_BLENDING),
                 write_mask: ColorWrites::ALL,
             })],

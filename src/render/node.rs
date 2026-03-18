@@ -64,6 +64,9 @@ impl ViewNode for ScreenEffectsNode {
         let pipeline_cache = world.resource::<PipelineCache>();
         let device = render_context.render_device();
 
+        // Select SDR or HDR pipeline variant based on this camera's target format
+        let target_format = view_target.main_texture_format();
+
         // Create sampler for screen texture
         let sampler = device.create_sampler(&SamplerDescriptor {
             label: Some("screen_effects_sampler"),
@@ -78,7 +81,7 @@ impl ViewNode for ScreenEffectsNode {
         // 1. Shockwave
         for instance in &prepared.shockwaves {
             if (instance.effect_layer & camera_mask) != 0 {
-                if let Some(pipeline_id) = pipelines.shockwave {
+                if let Some(pipeline_id) = pipelines.shockwave.for_format(target_format) {
                     self.apply_effect(
                         render_context,
                         pipeline_cache,
@@ -97,7 +100,7 @@ impl ViewNode for ScreenEffectsNode {
         // 2. Radial blur
         for instance in &prepared.radial_blurs {
             if (instance.effect_layer & camera_mask) != 0 {
-                if let Some(pipeline_id) = pipelines.radial_blur {
+                if let Some(pipeline_id) = pipelines.radial_blur.for_format(target_format) {
                     self.apply_effect(
                         render_context,
                         pipeline_cache,
@@ -116,7 +119,7 @@ impl ViewNode for ScreenEffectsNode {
         // 3. Raindrops
         for instance in &prepared.raindrops {
             if (instance.effect_layer & camera_mask) != 0 {
-                if let Some(pipeline_id) = pipelines.raindrops {
+                if let Some(pipeline_id) = pipelines.raindrops.for_format(target_format) {
                     self.apply_effect(
                         render_context,
                         pipeline_cache,
@@ -135,7 +138,7 @@ impl ViewNode for ScreenEffectsNode {
         // 4. World heat shimmer
         for instance in &prepared.world_heat_shimmers {
             if (instance.effect_layer & camera_mask) != 0 {
-                if let Some(pipeline_id) = pipelines.world_heat_shimmer {
+                if let Some(pipeline_id) = pipelines.world_heat_shimmer.for_format(target_format) {
                     self.apply_effect(
                         render_context,
                         pipeline_cache,
@@ -154,7 +157,7 @@ impl ViewNode for ScreenEffectsNode {
         // 5. RGB split
         for instance in &prepared.rgb_splits {
             if (instance.effect_layer & camera_mask) != 0 {
-                if let Some(pipeline_id) = pipelines.rgb_split {
+                if let Some(pipeline_id) = pipelines.rgb_split.for_format(target_format) {
                     self.apply_effect(
                         render_context,
                         pipeline_cache,
@@ -173,7 +176,7 @@ impl ViewNode for ScreenEffectsNode {
         // 6. Glitch
         for instance in &prepared.glitches {
             if (instance.effect_layer & camera_mask) != 0 {
-                if let Some(pipeline_id) = pipelines.glitch {
+                if let Some(pipeline_id) = pipelines.glitch.for_format(target_format) {
                     self.apply_effect(
                         render_context,
                         pipeline_cache,
@@ -192,7 +195,7 @@ impl ViewNode for ScreenEffectsNode {
         // 7. EMP Interference
         for instance in &prepared.emps {
             if (instance.effect_layer & camera_mask) != 0 {
-                if let Some(pipeline_id) = pipelines.emp {
+                if let Some(pipeline_id) = pipelines.emp.for_format(target_format) {
                     self.apply_effect(
                         render_context,
                         pipeline_cache,
@@ -211,7 +214,7 @@ impl ViewNode for ScreenEffectsNode {
         // 8. CRT effect
         for instance in &prepared.crts {
             if (instance.effect_layer & camera_mask) != 0 {
-                if let Some(pipeline_id) = pipelines.crt {
+                if let Some(pipeline_id) = pipelines.crt.for_format(target_format) {
                     self.apply_effect(
                         render_context,
                         pipeline_cache,
@@ -230,7 +233,7 @@ impl ViewNode for ScreenEffectsNode {
         // 9. Damage vignette
         for instance in &prepared.vignettes {
             if (instance.effect_layer & camera_mask) != 0 {
-                if let Some(pipeline_id) = pipelines.vignette {
+                if let Some(pipeline_id) = pipelines.vignette.for_format(target_format) {
                     self.apply_effect(
                         render_context,
                         pipeline_cache,
@@ -249,7 +252,7 @@ impl ViewNode for ScreenEffectsNode {
         // 10. Screen flash (applied last)
         for instance in &prepared.flashes {
             if (instance.effect_layer & camera_mask) != 0 {
-                if let Some(pipeline_id) = pipelines.flash {
+                if let Some(pipeline_id) = pipelines.flash.for_format(target_format) {
                     self.apply_effect(
                         render_context,
                         pipeline_cache,
