@@ -215,8 +215,12 @@ fn fragment(in: FullscreenVertexOutput) -> @location(0) vec4<f32> {
     let vig_uv = (distorted_uv - 0.5) * vec2<f32>(2.0 * vig_aspect, 2.0);
     let vig_max = length(vec2<f32>(vig_aspect, 1.0));
     let vig_dist = length(vig_uv) / vig_max;
-    let vig = smoothstep(1.0, 1.0 - params.vignette * intensity, vig_dist);
-    color *= vig;
+    // Off is off: with no vignette smoothstep's two edges meet at 1.0, and everything the barrel curve pushes past
+    // that (the corners) went black.
+    let vig_amount = params.vignette * intensity;
+    if vig_amount > 0.0 {
+        color *= smoothstep(1.0, 1.0 - vig_amount, vig_dist);
+    }
 
     // === 8. FLICKER ===
     color *= 1.0 + sin(params.time * 120.0) * params.flicker * intensity;
